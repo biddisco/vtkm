@@ -37,4 +37,6 @@ set(unit_tests
   UnitTestVecTraits.cxx
   )
 
+add_executable(handlecheck ArrayHandleTest.cxx)
+
 VTKM_unit_tests(SOURCES ${unit_tests})

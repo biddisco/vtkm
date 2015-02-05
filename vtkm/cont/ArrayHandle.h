@@ -38,6 +38,7 @@
 #include <boost/type_traits/is_base_of.hpp>
 
 #include <vector>
+#include <iostream>
 
 namespace vtkm {
 namespace cont {
@@ -142,9 +143,15 @@ public:
   ///
   VTKM_CONT_EXPORT ArrayHandle() : Internals(new InternalStruct)
   {
+//    std::cout << " Default constructor" << std::endl;
     this->Internals->UserPortalValid = false;
     this->Internals->ControlArrayValid = false;
     this->Internals->ExecutionArrayValid = false;
+  }
+
+  VTKM_CONT_EXPORT ArrayHandle( ArrayHandle const& other) {
+//    std::cout << " Copy constructor" << std::endl;
+    this->Internals = other.Internals;
   }
 
   /// Constructs an ArrayHandle pointing to the data in the given array portal.
@@ -624,5 +631,4 @@ make_ArrayHandle(const std::vector<T,Allocator> &array)
 
 }
 }
-
 #endif //vtk_m_cont_ArrayHandle_h
