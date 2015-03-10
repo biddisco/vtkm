@@ -1,0 +1,4 @@
+#define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_HPX
+//#define BOOST_SP_DISABLE_THREADS
+#include "isosurface.cpp"
+

@@ -45,13 +45,17 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/CMake/GitExternal.cmake)
 #--------------------------------------------------
 # Find VTKm
 #--------------------------------------------------
-#find_package(VTKm)
-if(WIN32)
-  include_directories("D:/Code/vtkm")
-  include_directories("D:/Build/vtkm")
-elseif(APPLE)
-  include_directories("/Users/biddisco/src/vtkm/")
-  include_directories("/Users/biddisco/build/vtkm/")
+if (NOT TARGET vtkm)
+  #find_package(VTKm)
+  if(WIN32)
+    include_directories("D:/Code/vtkm")
+    include_directories("D:/Build/vtkm")
+  elseif(APPLE)
+    include_directories("/Users/biddisco/src/vtkm/")
+    include_directories("/Users/biddisco/build/vtkm/")
+  endif()
+else()
+  message("Found target vtk, skipping detection")
 endif()
 
 #--------------------------------------------------
@@ -113,3 +117,16 @@ target_link_libraries(isosurface ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
 
 cuda_add_executable(cuda_isosurface isosurface.cu)
 target_link_libraries(cuda_isosurface ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+
+
+if (VTKm_ENABLE_HPX)
+  add_executable(hpx_isosurface isosurface_hpx.cpp)
+  target_link_libraries(hpx_isosurface ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+  hpx_setup_target(hpx_isosurface)
+  target_link_libraries(hpx_isosurface
+    iostreams_component
+    ${Boost_LIBRARIES}
+  )
+endif()
+
+
