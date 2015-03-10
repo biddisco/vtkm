@@ -61,5 +61,9 @@ if (VTKm_ENABLE_CUDA)
   add_subdirectory(cuda)
 endif (VTKm_ENABLE_CUDA)
 
+if (VTKm_ENABLE_HPX)
+  add_subdirectory(hpx)
+endif (VTKm_ENABLE_HPX)
+
 #-----------------------------------------------------------------------------
 add_subdirectory(testing)

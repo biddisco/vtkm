@@ -18,18 +18,15 @@
 ##  this software.
 ##============================================================================
 
-set(unit_tests
-  UnitTestWorkletMapField.cxx
+set(headers
+  ArrayManagerExecutionHPX.h
+#  ArrayManagerExecutionThrustDevice.h
+  DeviceAdapterAlgorithmHPX.h
+#  DeviceAdapterAlgorithmThrust.h
+  DeviceAdapterTagHPX.h
+#  SetThrustForHPX.h
   )
 
-vtkm_save_worklet_unit_tests(${unit_tests})
+vtkm_declare_headers(HPX ${headers})
 
-vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_SERIAL )
-
-if (VTKm_ENABLE_CUDA)
-  vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_CUDA )
-endif()
-
-if (VTKm_ENABLE_HPX)
-  vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_HPX )
-endif()
+add_subdirectory(testing)

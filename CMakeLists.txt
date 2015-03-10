@@ -67,6 +67,16 @@ if (VTKm_ENABLE_TESTING)
   include(CTest)
 endif()
 
+#--------------------------------------------------
+# Find HPX
+#--------------------------------------------------
+option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
+if(VTKm_ENABLE_HPX)
+  find_package(HPX REQUIRED)
+  set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
+  include_directories(${HPX_INCLUDE_DIRS})
+endif()
+
 #-----------------------------------------------------------------------------
 # Set up devices selected.
 vtkm_configure_device(Serial)

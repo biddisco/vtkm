@@ -150,7 +150,9 @@ public:
 // need.
 
 #if VTKM_DEVICE_ADAPTER == VTKM_DEVICE_ADAPTER_SERIAL
-#include <vtkm/cont/internal/ArrayManagerExecutionSerial.h>
+# include <vtkm/cont/internal/ArrayManagerExecutionSerial.h>
+#elif VTKM_DEVICE_ADAPTER == VTKM_DEVICE_ADAPTER_HPX
+# include <vtkm/cont/hpx/internal/ArrayManagerExecutionHPX.h>
 // #elif VTKM_DEVICE_ADAPTER == VTKM_DEVICE_ADAPTER_CUDA
 // #include <vtkm/cuda/cont/internal/ArrayManagerExecutionCuda.h>
 // #elif VTKM_DEVICE_ADAPTER == VTKM_DEVICE_ADAPTER_OPENMP
