@@ -49,6 +49,8 @@ typedef VTKM_DEFAULT_DEVICE_ADAPTER_TAG DeviceAdapter;
 #endif
 #include "quaternion.h"
 
+int WinId = 0;
+
 template <typename FieldType, typename OutputType>
 class IsosurfaceFilterUniformGrid;
 
@@ -571,6 +573,17 @@ void mouseMove(int x, int y)
   glutPostRedisplay();
 }
 
+void keyboardCB( unsigned char key, int x, int y )
+{
+  switch ( key )
+  {
+    case 27: // Escape key
+      glutDestroyWindow ( WinId );
+      exit (0);
+      break;
+  }
+  glutPostRedisplay();
+}
 
 /// Print a vector
 ///
@@ -609,11 +622,12 @@ int main(int argc, char* argv[])
   glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
   glutInitWindowSize(1000, 1000);
   glutInitWindowPosition(300, 200);
-  glutCreateWindow("VTK-m Isosurface");
+  WinId = glutCreateWindow("VTK-m Isosurface");
   initializeGL();
   glutDisplayFunc(displayCall);
   glutMotionFunc(mouseMove);
   glutMouseFunc(mouseCall);
+  glutKeyboardFunc(keyboardCB);
   glutMainLoop();
 
   return 0;
