@@ -20,8 +20,8 @@
 #ifndef vtk_m_cont_DeviceAdapterHPX_h
 #define vtk_m_cont_DeviceAdapterHPX_h
 
-#include <vtkm/cont/internal/DeviceAdapterTagHPX.h>
-#include <vtkm/cont/internal/ArrayManagerExecutionHPX.h>
-#include <vtkm/cont/internal/DeviceAdapterAlgorithmHPX.h>
+#include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
+#include <vtkm/cont/hpx/internal/ArrayManagerExecutionHPX.h>
+#include <vtkm/cont/hpx/internal/DeviceAdapterAlgorithmHPX.h>
 
 #endif //vtk_m_cont_DeviceAdapterHPX_h
