@@ -20,6 +20,9 @@
 #ifndef vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
 #define vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
 
+// include HPX headers before vtkm+boost to avoid problems with definitions
+#include <hpx/parallel/algorithms/for_each.hpp>
+
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
@@ -138,10 +141,15 @@ public:
 
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
-    std::for_each(
+    std::cout << "Here 1 " << numInstances << std::endl;
+
+    hpx::parallel::for_each(
+          hpx::parallel::par,
           ::boost::counting_iterator<vtkm::Id>(0),
           ::boost::counting_iterator<vtkm::Id>(numInstances),
           kernel);
+
+    std::cout << "Here 2" << std::endl;
 
     if (errorMessage.IsErrorRaised())
     {
