@@ -23,6 +23,9 @@
 // squash windows #defines before #including hpx
 #define NOMINMAX
 
+#ifdef _WIN32
+ #define BOOST_PROGRAM_OPTIONS_DYN_LINK
+#endif
 // override int main() so that hpx is initialized on startup
 #include <hpx/hpx_main.hpp>  
 
