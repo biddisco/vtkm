@@ -27,6 +27,8 @@
 # define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_SERIAL
 #endif
 
+#define HPX_TIMING
+
 #ifdef HPX_TIMING
 # include <chrono>
   std::size_t os_threads;
@@ -475,7 +477,20 @@ public:
     vtkm::cont::ArrayHandleCounting<vtkm::Id> validCellCountImplicitArray(0, numValidCells);
     vtkm::cont::DeviceAdapterAlgorithm<VTKM_DEFAULT_DEVICE_ADAPTER_TAG>::UpperBounds(validCellEnumArray, validCellCountImplicitArray, validCellIndicesArray);
     vtkm::worklet::DispatcherMapField<Permute> permuteDispatcher(Permute(2, caseInfoArray.PrepareForInput(DeviceAdapter())));
+#ifdef HPX_TIMING
+  // start timer
+  std::chrono::time_point<std::chrono::system_clock> start_permute, end_permute;
+  start_permute = std::chrono::system_clock::now();
+#endif
     permuteDispatcher.Invoke(validCellIndicesArray, validVerticesArray);
+#ifdef HPX_TIMING
+  // stop timer
+  end_permute = std::chrono::system_clock::now();
+  std::chrono::duration<double> elapsed_seconds2 = end_permute-start_permute;
+  std::cout << "CSVData "             
+            << ", threads, "          << os_threads 
+            << ", permute_time, " << elapsed_seconds2.count() << std::endl;
+#endif
     int numTotalVertices = vtkm::cont::DeviceAdapterAlgorithm<VTKM_DEFAULT_DEVICE_ADAPTER_TAG>::ScanExclusive(validVerticesArray, outputVerticesEnumArray);
 
 #ifdef HPX_TIMING
@@ -500,10 +515,10 @@ public:
 #ifdef HPX_TIMING
   // stop timer
   end_iso = std::chrono::system_clock::now();
-  std::chrono::duration<double> elapsed_seconds2 = end_iso-start_iso;
+  std::chrono::duration<double> elapsed_seconds3 = end_iso-start_iso;
   std::cout << "CSVData "             
             << ", threads, "          << os_threads 
-            << ", isosurface_time, " << elapsed_seconds2.count() << std::endl;
+            << ", isosurface_time, " << elapsed_seconds3.count() << std::endl;
 #endif
   }
 };
@@ -635,7 +650,7 @@ std::string vec3String(const vtkm::Vec<vtkm::Float32,3>& data)
 ///
 int main(int argc, char* argv[])
 {
-#ifdef HPX_TIMING
+#if  VTKM_DEVICE_ADAPTER == VTKM_DEVICE_ADAPTER_HPX
   os_threads = hpx::get_os_thread_count();
 #endif
   // Abort if dimension and file name are not provided

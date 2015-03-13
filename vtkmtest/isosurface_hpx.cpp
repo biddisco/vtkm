@@ -12,6 +12,7 @@
 
 // if we have FreeGlut, change event handler
 // #ifdef VTKM_USE_FREEGLUT
+#undef VTKM_USE_FREEGLUT
 
 #define HPX_TIMING
 
