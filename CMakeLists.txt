@@ -73,7 +73,14 @@ endif()
 option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
 if(VTKm_ENABLE_HPX)
   find_package(HPX REQUIRED)
-  find_package(Boost REQUIRED)
+  #-------------
+  # Find Boost, just to make sure
+  #-------------
+  find_package(Boost 1.49
+    COMPONENTS 
+      thread system date_time chrono serialization atomic 
+    REQUIRED
+  )
   set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
   include_directories(${HPX_INCLUDE_DIRS})
 endif()
