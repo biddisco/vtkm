@@ -21,19 +21,21 @@
 #define vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
 
 // include HPX headers before vtkm+boost to avoid problems with definitions
+#include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
 #include <hpx/parallel/algorithms/for_each.hpp>
-
+#include <hpx/include/parallel_scan.hpp> 
+//
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
-#include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 
 #include <boost/iterator/counting_iterator.hpp>
 #include <boost/utility/enable_if.hpp>
+
 
 #include <algorithm>
 #include <numeric>
@@ -68,12 +70,31 @@ public:
 
     if (numberOfValues <= 0) { return 0; }
 
-    std::partial_sum(vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
-                     vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
-                     vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
+    T result =  0;
+/*
+    std::cout << "\nInput values " ;
+    std::copy(
+      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
+      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+      std::ostream_iterator<T>(std::cout, ", ")
+    );
+*/
 
-    // Return the value at the last index in the array, which is the full sum.
-    return outputPortal.Get(numberOfValues - 1);
+    hpx::parallel::inclusive_scan(hpx::parallel::par, 
+      vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
+
+/*
+    std::cout << "\nOutput values " ;
+    std::copy(
+      vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
+      vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
+      std::ostream_iterator<T>(std::cout, ", ")
+    );
+*/
+    result =  outputPortal.Get(numberOfValues - 1);
+    return result;
   }
 
   template<typename T, class CIn, class COut>
@@ -92,19 +113,17 @@ public:
     PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     if (numberOfValues <= 0) { return 0; }
+     
+    T result =  0;
 
-    std::partial_sum(vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
-                     vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
-                     vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
+    // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue = 
+    hpx::parallel::exclusive_scan(hpx::parallel::par, 
+      vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorBegin(outputPortal), T());
 
-    T fullSum = outputPortal.Get(numberOfValues - 1);
-
-    // Shift right by one
-    std::copy_backward(vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
-                       vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-1,
-                       vtkm::cont::ArrayPortalToIteratorEnd(outputPortal));
-    outputPortal.Set(0, 0);
-    return fullSum;
+    result =  outputPortal.Get(numberOfValues - 1) + inputPortal.Get(numberOfValues - 1);
+    return result;
   }
 
 private:
@@ -141,15 +160,11 @@ public:
 
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
-    std::cout << "Here 1 " << numInstances << std::endl;
-
     hpx::parallel::for_each(
           hpx::parallel::par,
           ::boost::counting_iterator<vtkm::Id>(0),
           ::boost::counting_iterator<vtkm::Id>(numInstances),
           kernel);
-
-    std::cout << "Here 2" << std::endl;
 
     if (errorMessage.IsErrorRaised())
     {
