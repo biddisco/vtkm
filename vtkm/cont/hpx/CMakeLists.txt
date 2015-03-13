@@ -25,6 +25,8 @@ set(headers
   internal/DeviceAdapterTagHPX.h
 )
 
+add_definitions(-DVTKM_DEVICE_CONFIG_INCLUDE=\"vtkm/cont/hpx/vtkm_hpx.hpp\")
+
 #-----------------------------------------------------------------------------
 vtkm_declare_headers(${impl_headers} ${headers})
 
