@@ -78,8 +78,8 @@
 # endif
 #endif
 
-#if defined(CONFIG_DEVICE_INCLUDE)
-# include CONFIG_DEVICE_INCLUDE
+#if defined(VTKM_DEVICE_CONFIG_INCLUDE)
+# include VTKM_DEVICE_CONFIG_INCLUDE
 #endif
 
 // Determine whether we will use variadic templates (a new feature in C++11).
