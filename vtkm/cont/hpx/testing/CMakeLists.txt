@@ -18,17 +18,7 @@
 ##  this software.
 ##============================================================================
 
-set(headers
-  DeviceAdapterHPX.h
-  internal/ArrayManagerExecutionHPX.h  
-  internal/DeviceAdapterAlgorithmHPX.h 
-  internal/DeviceAdapterTagHPX.h
-)
-
-add_definitions(-DVTKM_DEVICE_CONFIG_INCLUDE=\"vtkm/cont/hpx/vtkm_hpx.hpp\")
-
-#-----------------------------------------------------------------------------
-vtkm_declare_headers(${impl_headers} ${headers})
-
-#-----------------------------------------------------------------------------
-add_subdirectory(testing)
+set(unit_tests
+  UnitTestDeviceAdapterHPX.cxx
+  )
+vtkm_unit_tests(HPX SOURCES ${unit_tests})

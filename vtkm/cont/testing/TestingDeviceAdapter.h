@@ -1323,8 +1323,8 @@ private:
 
       // TestAlgorithmSchedule();
       // TestErrorExecution();
-      // TestScanInclusive();
-      // TestScanExclusive();
+       TestScanInclusive();
+       TestScanExclusive();
       // TestSortWithComparisonObject();
       // // TestSortByKey();
       // TestLowerBoundsWithComparisonObject();
