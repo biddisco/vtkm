@@ -1074,7 +1074,7 @@ private:
     std::cout << "Testing Exclusive Scan" << std::endl;
 
     //construct the index array
-    IdArrayHandle array;
+    IdArrayHandle array, result;
     Algorithm::Schedule(
       ClearArrayKernel(array.PrepareForOutput(ARRAY_SIZE,
                        DeviceAdapterTag())),
@@ -1082,7 +1082,7 @@ private:
 
     // we know have an array whose sum = (OFFSET * ARRAY_SIZE),
     // let's validate that
-    vtkm::Id sum = Algorithm::ScanExclusive(array, array);
+    vtkm::Id sum = Algorithm::ScanExclusive(array, result);
 
     VTKM_TEST_ASSERT(sum == (OFFSET * ARRAY_SIZE),
                      "Got bad sum from Exclusive Scan");
@@ -1093,7 +1093,7 @@ private:
     vtkm::Id triangleNumber = 0;
     for(vtkm::Id i=0, pos=0; i < ARRAY_SIZE; ++i, ++pos)
     {
-      const vtkm::Id value = array.GetPortalConstControl().Get(i);
+      const vtkm::Id value = result.GetPortalConstControl().Get(i);
       partialSum += value;
       triangleNumber = ((pos*(pos+1))/2);
       VTKM_TEST_ASSERT(partialSum == triangleNumber * OFFSET,
