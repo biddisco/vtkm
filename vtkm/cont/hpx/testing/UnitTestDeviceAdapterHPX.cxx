@@ -20,7 +20,7 @@
 
 #define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_ERROR
 
-#include <vtkm/cont/DeviceAdapterHPX.h>
+#include <vtkm/cont/hpx/DeviceAdapterHPX.h>
 
 #include <vtkm/cont/testing/TestingDeviceAdapter.h>
 

@@ -31,5 +31,7 @@ if (VTKm_ENABLE_CUDA)
 endif()
 
 if (VTKm_ENABLE_HPX)
+  vtkm_clear_worklet_unit_tests()
+  vtkm_save_worklet_unit_tests(HPX ${unit_tests})
   vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_HPX )
 endif()

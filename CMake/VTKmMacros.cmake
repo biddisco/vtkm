@@ -159,7 +159,7 @@ endfunction(vtkm_pyexpander_generated_file)
 #   LIBRARIES <dependent_library_list>
 #   )
 function(vtkm_unit_tests)
-  set(options CUDA)
+  set(options CUDA HPX)
   set(oneValueArgs)
   set(multiValueArgs SOURCES LIBRARIES)
   cmake_parse_arguments(VTKm_UT
@@ -186,10 +186,20 @@ function(vtkm_unit_tests)
     vtkm_get_kit_name(kit)
     #we use UnitTests_kit_ so that it is an unique key to exclude from coverage
     set(test_prog UnitTests_kit_${kit})
-    create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES})
+    if(VTKm_UT_HPX)
+      create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES}
+        EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
+    else()
+      create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES})
+    endif()
     if (VTKm_UT_CUDA)
       cuda_add_executable(${test_prog} ${TestSources})
-    else (VTKm_UT_CUDA)
+    elseif (VTKm_UT_HPX)
+      link_directories(${Boost_LIBRARY_DIRS})
+      add_executable(${test_prog}  ${TestSources})
+      target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
+      hpx_setup_target(${test_prog})
+    else ()
       add_executable(${test_prog} ${TestSources})
       if(VTKm_EXTRA_COMPILER_WARNINGS)
         set_target_properties(${test_prog}
@@ -231,11 +241,24 @@ endfunction(vtkm_unit_tests)
 # notes: will save the sources absolute path as the
 # vtkm_source_worklet_unit_tests global property
 function(vtkm_save_worklet_unit_tests )
+  set(options HPX)
+  set(oneValueArgs)
+  set(multiValueArgs)
+  cmake_parse_arguments(VTKm_UT
+    "${options}" "${oneValueArgs}" "${multiValueArgs}"
+    ${ARGN}
+    )
+
 
   #create the test driver when we are called, since
   #the test driver expect the test files to be in the same
   #directory as the test driver
-  create_test_sourcelist(test_sources WorkletTestDriver.cxx ${ARGN})
+  if(VTKm_UT_HPX)
+    create_test_sourcelist(test_sources WorkletTestDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS}
+      EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
+  else()
+    create_test_sourcelist(test_sources WorkletTestDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS})
+  endif()
 
   #store the absolute path for the test drive and all the test
   #files
@@ -248,7 +271,7 @@ function(vtkm_save_worklet_unit_tests )
   #the same time we want to configure each file into the build
   #directory as a .cu file so that we can compile it with cuda
   #if needed
-  foreach(fname ${ARGN})
+  foreach(fname ${VTKm_UT_UNPARSED_ARGUMENTS})
     set(absPath)
 
     get_filename_component(absPath ${fname} ABSOLUTE)
@@ -271,8 +294,16 @@ function(vtkm_save_worklet_unit_tests )
                 PROPERTY vtkm_worklet_unit_tests_cu_sources ${cu_sources})
   set_property( GLOBAL APPEND
                 PROPERTY vtkm_worklet_unit_tests_drivers ${driver})
-
 endfunction(vtkm_save_worklet_unit_tests)
+
+function(vtkm_clear_worklet_unit_tests)
+  set_property( GLOBAL 
+                PROPERTY vtkm_worklet_unit_tests_sources "")
+  set_property( GLOBAL 
+                PROPERTY vtkm_worklet_unit_tests_cu_sources "")
+  set_property( GLOBAL 
+                PROPERTY vtkm_worklet_unit_tests_drivers "")
+endfunction(vtkm_clear_worklet_unit_tests)
 
 # Call each worklet test for the given device adapter
 # Usage:
@@ -334,7 +365,7 @@ function(vtkm_worklet_unit_tests device_adapter)
       link_directories(${Boost_LIBRARY_DIRS})
       add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
       target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
-      target_link_libraries(${test_prog} hpx ${Boost_LIBRARIES})
+      target_link_libraries(${test_prog} hpx hpx_init ${Boost_LIBRARIES})
     else()
       add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
     endif()
