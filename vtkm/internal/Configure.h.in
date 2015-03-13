@@ -78,6 +78,10 @@
 # endif
 #endif
 
+#if defined(CONFIG_DEVICE_INCLUDE)
+# include CONFIG_DEVICE_INCLUDE
+#endif
+
 // Determine whether we will use variadic templates (a new feature in C++11).
 // Currently have VARIADIC_TEMPLATE support off.
 #cmakedefine VTKM_NO_VARIADIC_TEMPLATE

@@ -294,7 +294,9 @@ function(vtkm_worklet_unit_tests device_adapter)
 
   #detect if we are generating a .cu files
   set(is_cuda FALSE)
+  set(is_hpx FALSE)
   set(old_nvcc_flags ${CUDA_NVCC_FLAGS})
+  
   if("${device_adapter}" STREQUAL "VTKM_DEVICE_ADAPTER_CUDA")
     set(is_cuda TRUE)
     #if we are generating cu files need to setup three things.
@@ -314,6 +316,9 @@ function(vtkm_worklet_unit_tests device_adapter)
     list(APPEND CUDA_NVCC_FLAGS "-w")
   endif()
 
+  if("${device_adapter}" STREQUAL "VTKM_DEVICE_ADAPTER_HPX")
+    set(is_hpx true)
+  endif()
 
   if(VTKm_ENABLE_TESTING)
     string(REPLACE "VTKM_DEVICE_ADAPTER_" "" device_type ${device_adapter})
@@ -325,6 +330,12 @@ function(vtkm_worklet_unit_tests device_adapter)
 
     if(is_cuda)
       cuda_add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
+    elseif(is_hpx)
+      message("Link dirs are ${Boost_LIBRARY_DIRS}")
+      link_directories(${Boost_LIBRARY_DIRS})
+      add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
+      target_compile_definitions(${test_prog} PUBLIC CONFIG_DEVICE_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
+      target_link_libraries(${test_prog} hpx)
     else()
       add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
     endif()
