@@ -128,6 +128,13 @@ if (VTKm_ENABLE_HPX)
     iostreams_component
     ${Boost_LIBRARIES}
   )
-endif()
+  add_executable(hpx_compositor compositor_hpx.cpp)
+  target_link_libraries(hpx_compositor ${OPENGL_LIBRARIES} ${GLUT_LIBRARIES})
+  hpx_setup_target(hpx_compositor)
+  target_link_libraries(hpx_compositor
+    iostreams_component
+    ${Boost_LIBRARIES}
+  )
+ endif()
 
 
