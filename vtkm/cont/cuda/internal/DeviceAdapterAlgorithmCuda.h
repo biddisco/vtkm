@@ -89,6 +89,38 @@ private:
   cudaEvent_t EndEvent;
 };
 
+/// CUDA contains its own atomic operations
+///
+template<typename T>
+class DeviceAdapterAtomicArrayImplementation<T,vtkm::cont::DeviceAdapterTagCuda>
+{
+public:
+  VTKM_CONT_EXPORT
+  DeviceAdapterAtomicArrayImplementation(
+             vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic> handle):
+    Portal( handle.PrepareForInPlace( vtkm::cont::DeviceAdapterTagCuda()) )
+  {
+  }
+
+  VTKM_EXEC_EXPORT
+  T Add(vtkm::Id index, const T& value) const
+  {
+    return atomicAdd(this->Portal.GetIteratorBegin()+index, value);
+  }
+
+  VTKM_EXEC_EXPORT
+  T Exchange(vtkm::Id index, const T& value) const
+  {
+    return atomicExch(this->Portal.GetIteratorBegin()+index, value);
+  }
+
+private:
+  typedef typename vtkm::cont::ArrayHandle<T,vtkm::cont::StorageTagBasic>
+        ::template ExecutionTypes<vtkm::cont::DeviceAdapterTagCuda>::Portal PortalType;
+  PortalType Portal;
+};
+
+
 }
 } // namespace vtkm::cont
 

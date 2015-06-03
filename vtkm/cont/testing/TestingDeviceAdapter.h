@@ -38,6 +38,8 @@
 
 #include <vtkm/cont/testing/Testing.h>
 
+#include <vtkm/exec/AtomicArray.h>
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -238,6 +240,25 @@ public:
     IdPortalType Array;
   };
 
+  template<typename T>
+  struct AtomicKernel
+  {
+    VTKM_CONT_EXPORT
+    AtomicKernel(const vtkm::exec::AtomicArray<T,DeviceAdapterTag> &array)
+    : AArray(array)
+    {  }
+
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
+    {
+      this->AArray.Add(index, 1);
+    }
+
+    VTKM_CONT_EXPORT void SetErrorMessageBuffer(
+        const vtkm::exec::internal::ErrorMessageBuffer &) {  }
+
+    vtkm::exec::AtomicArray<T,DeviceAdapterTag> AArray;
+  };
+
   struct FuseAll
   {
     template<typename T>
@@ -387,6 +408,25 @@ private:
     VTKM_TEST_ASSERT(elapsedTime < 2.0,
                      "Timer counted too far or system really busy.");
   }
+
+    static VTKM_CONT_EXPORT void TestAtomicArray()
+  {
+    std::cout << "-------------------------------------------" << std::endl;
+    std::cout << "Testing Atomic Array with vtkm::ID" << std::endl;
+    {
+    std::vector<vtkm::Id> singleElement;
+    singleElement.push_back(1234);
+    IdArrayHandle atomicElement = vtkm::cont::make_ArrayHandle(singleElement);
+
+    vtkm::exec::AtomicArray<vtkm::Id, DeviceAdapterTag> atomic(atomicElement);
+    Algorithm::Schedule(AtomicKernel<vtkm::Id>(atomic), ARRAY_SIZE);
+    }
+
+    std::cout << "Testing Atomic Array with vtkm::Vec< vtkm::Float64, 3> >" << std::endl;
+    {
+    }
+  }
+
 
   static VTKM_CONT_EXPORT void TestAlgorithmSchedule()
   {
@@ -1523,6 +1563,7 @@ private:
       TestArrayManagerExecution();
       TestOutOfMemory();
       TestTimer();
+      TestAtomicArray();
 
       TestAlgorithmSchedule();
       TestErrorExecution();

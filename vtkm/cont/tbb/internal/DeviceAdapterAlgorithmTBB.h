@@ -55,6 +55,7 @@ VTKM_THIRDPARTY_PRE_INCLUDE
 #include <tbb/parallel_sort.h>
 #endif
 
+#include <tbb/atomic.h>
 #include <tbb/blocked_range.h>
 #include <tbb/blocked_range3d.h>
 #include <tbb/parallel_for.h>
@@ -68,6 +69,7 @@ VTKM_THIRDPARTY_PRE_INCLUDE
 #endif
 
 VTKM_THIRDPARTY_POST_INCLUDE
+
 
 namespace vtkm {
 namespace cont {
@@ -711,6 +713,46 @@ public:
 
 private:
   ::tbb::tick_count StartTime;
+};
+
+
+/// TBB contains its own atomic operations
+template<typename T>
+class DeviceAdapterAtomicArrayImplementation<T,vtkm::cont::DeviceAdapterTagTBB>
+{
+public:
+  VTKM_CONT_EXPORT
+  DeviceAdapterAtomicArrayImplementation(
+               vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic> handle):
+    Iterators( IteratorsType( handle.PrepareForInPlace(
+                                      vtkm::cont::DeviceAdapterTagTBB())
+                             ) )
+  {
+  }
+
+  //this needs to be an array of tbb::atomic<T's>
+  VTKM_EXEC_EXPORT
+  T Add(vtkm::Id index, const T& value) const
+  {
+    ::tbb::atomic<T*> lockedValue; //The copy constructor is not atomic
+    lockedValue = *(Iterators.GetBegin()+index);
+    return lockedValue.fetch_and_add(value);
+  }
+
+  VTKM_EXEC_EXPORT
+  T Exchange(vtkm::Id index, const T& value) const
+  {
+    ::tbb::atomic<T*> lockedValue; //The copy constructor is not atomic
+    lockedValue = *(Iterators.GetBegin()+index);
+    return lockedValue.fetch_and_store(value);
+  }
+
+private:
+  typedef typename vtkm::cont::ArrayHandle<T,vtkm::cont::StorageTagBasic>
+        ::template ExecutionTypes<DeviceAdapterTagTBB>::Portal PortalType;
+  typedef vtkm::cont::ArrayPortalToIterators<PortalType> IteratorsType;
+
+  IteratorsType Iterators;
 };
 
 }

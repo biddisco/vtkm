@@ -496,6 +496,9 @@ public:
   }
 };
 
+template<typename T, typename DeviceTag>
+class DeviceAdapterAtomicArrayImplementation;
+
 }
 } // namespace vtkm::cont
 
