@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -21,38 +21,33 @@
 #define vtk_m_cont_cuda_internal_MakeThrustIterator_h
 
 #include <vtkm/Types.h>
+#include <vtkm/Pair.h>
 #include <vtkm/internal/ExportMacros.h>
 
 #include <vtkm/exec/cuda/internal/ArrayPortalFromThrust.h>
+#include <vtkm/exec/cuda/internal/WrappedOperators.h>
 
-// Disable GCC warnings we check vtkmfor but Thrust does not.
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+// Disable warnings we check vtkm for but Thrust does not.
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic push
-#endif // gcc version >= 4.6
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 2)
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif // gcc version >= 4.2
-#endif // gcc && !CUDA
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif // gcc || clang
 
 #include <thrust/system/cuda/memory.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic pop
-#endif // gcc version >= 4.6
-#endif // gcc && !CUDA
-
+#endif // gcc || clang
 
 namespace vtkm {
 namespace cont {
 namespace cuda {
 namespace internal {
-
 namespace detail {
 
 // Tags to specify what type of thrust iterator to use.
@@ -60,16 +55,16 @@ struct ThrustIteratorTransformTag {  };
 struct ThrustIteratorDevicePtrTag {  };
 
 // Traits to help classify what thrust iterators will be used.
-template<class IteratorType>
+template<class PortalType, class IteratorType>
 struct ThrustIteratorTag {
   typedef ThrustIteratorTransformTag Type;
 };
-template<typename T>
-struct ThrustIteratorTag<T *> {
+template<typename PortalType, typename T>
+struct ThrustIteratorTag<PortalType, T *> {
   typedef ThrustIteratorDevicePtrTag Type;
 };
-template<typename T>
-struct ThrustIteratorTag<const T*> {
+template<typename PortalType, typename T>
+struct ThrustIteratorTag<PortalType, const T*> {
   typedef ThrustIteratorDevicePtrTag Type;
 };
 
@@ -81,56 +76,10 @@ template<typename T> struct ThrustStripPointer<const T *> {
   typedef const T Type;
 };
 
-
-template<class PortalType>
-struct PortalValue {
-  typedef typename PortalType::ValueType ValueType;
-
-  VTKM_EXEC_EXPORT
-  PortalValue(const PortalType &portal, vtkm::Id index)
-    : Portal(portal), Index(index) {  }
-
-  VTKM_EXEC_EXPORT
-  ValueType operator=(ValueType value) {
-    this->Portal.Set(this->Index, value);
-    return value;
-  }
-
-  VTKM_EXEC_EXPORT
-  operator ValueType(void) const {
-    return this->Portal.Get(this->Index);
-  }
-
-  const PortalType Portal;
-  const vtkm::Id Index;
-};
-
-template<class PortalType>
-class LookupFunctor
-      : public ::thrust::unary_function<vtkm::Id,
-                                        PortalValue<PortalType>  >
-{
-  public:
-    VTKM_CONT_EXPORT LookupFunctor(PortalType portal)
-      : Portal(portal) {  }
-
-    VTKM_EXEC_EXPORT
-    PortalValue<PortalType>
-    operator()(vtkm::Id index)
-    {
-      return PortalValue<PortalType>(this->Portal, index);
-    }
-
-  private:
-    PortalType Portal;
-};
-
 template<class PortalType, class Tag> struct IteratorChooser;
 template<class PortalType>
 struct IteratorChooser<PortalType, detail::ThrustIteratorTransformTag> {
-  typedef ::thrust::transform_iterator<
-      LookupFunctor<PortalType>,
-      ::thrust::counting_iterator<vtkm::Id> > Type;
+  typedef vtkm::exec::cuda::internal::IteratorFromArrayPortal<PortalType> Type;
 };
 template<class PortalType>
 struct IteratorChooser<PortalType, detail::ThrustIteratorDevicePtrTag> {
@@ -142,21 +91,22 @@ struct IteratorChooser<PortalType, detail::ThrustIteratorDevicePtrTag> {
 template<class PortalType>
 struct IteratorTraits
 {
-  typedef typename PortalType::IteratorType BaseIteratorType;
-  typedef typename detail::ThrustIteratorTag<BaseIteratorType>::Type Tag;
+  typedef typename detail::ThrustIteratorTag<
+                          PortalType,
+                          typename PortalType::IteratorType>::Type Tag;
   typedef typename IteratorChooser<PortalType, Tag>::Type IteratorType;
 };
 
 
 template<typename T>
-VTKM_CONT_EXPORT static
+VTKM_CONT_EXPORT
 ::thrust::cuda::pointer<T>
 MakeDevicePtr(T *iter)
 {
   return::thrust::cuda::pointer<T>(iter);
 }
 template<typename T>
-VTKM_CONT_EXPORT static
+VTKM_CONT_EXPORT
 ::thrust::cuda::pointer<const T>
 MakeDevicePtr(const T *iter)
 {
@@ -164,17 +114,15 @@ MakeDevicePtr(const T *iter)
 }
 
 template<class PortalType>
-VTKM_CONT_EXPORT static
+VTKM_CONT_EXPORT
 typename IteratorTraits<PortalType>::IteratorType
 MakeIteratorBegin(PortalType portal, detail::ThrustIteratorTransformTag)
 {
-  return ::thrust::make_transform_iterator(
-        ::thrust::make_counting_iterator(vtkm::Id(0)),
-        LookupFunctor<PortalType>(portal));
+  return vtkm::exec::cuda::internal::IteratorFromArrayPortal<PortalType>(portal,0);
 }
 
 template<class PortalType>
-VTKM_CONT_EXPORT static
+VTKM_CONT_EXPORT
 typename IteratorTraits<PortalType>::IteratorType
 MakeIteratorBegin(PortalType portal, detail::ThrustIteratorDevicePtrTag)
 {
@@ -205,35 +153,8 @@ IteratorEnd(PortalType portal)
 }
 }
 }
+
+
 } //namespace vtkm::cont::cuda::internal
 
-namespace thrust {
-
-template< typename PortalType >
-struct less< vtkm::cont::cuda::internal::detail::PortalValue< PortalType > > :
-        public binary_function<
-          vtkm::cont::cuda::internal::detail::PortalValue< PortalType >,
-          vtkm::cont::cuda::internal::detail::PortalValue< PortalType >,
-          bool>
-{
-  typedef vtkm::cont::cuda::internal::detail::PortalValue< PortalType > T;
-  typedef typename vtkm::cont::cuda::internal::detail::PortalValue<
-                        PortalType >::ValueType ValueType;
-
-
-  /*! Function call operator. The return value is <tt>lhs < rhs</tt>.
-   */
-  __host__ __device__ bool operator()(const T &lhs, const T &rhs) const
-  {return (ValueType)lhs < (ValueType)rhs;}
-
-  /*! Function call operator. The return value is <tt>lhs < rhs</tt>.
-      specially designed to work with vtkm portal values, which can
-      be compared to their underline type
-   */
-  __host__ __device__ bool operator()(const T &lhs,
-                                      const ValueType &rhs) const
-  {return (ValueType)lhs < rhs;}
-}; // end less
-
-}
 #endif

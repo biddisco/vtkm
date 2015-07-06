@@ -8,7 +8,7 @@
 ##
 ##  Copyright 2014 Sandia Corporation.
 ##  Copyright 2014 UT-Battelle, LLC.
-##  Copyright 2014. Los Alamos National Security
+##  Copyright 2014 Los Alamos National Security.
 ##
 ##  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 ##  the U.S. Government retains certain rights in this software.
@@ -19,7 +19,14 @@
 ##============================================================================
 
 set(unit_tests
+  UnitTestCellAverage.cxx
+  UnitTestPointElevation.cxx
   UnitTestWorkletMapField.cxx
+  UnitTestWorkletMapFieldExecArg.cxx
+  UnitTestWorkletMapFieldMultiParam.cxx
+  UnitTestWorkletMapTopologyExplicit.cxx
+  UnitTestWorkletMapTopologyRegular.cxx
+  UnitTestVertexClustering.cxx
   )
 
 vtkm_save_worklet_unit_tests(${unit_tests})
@@ -34,4 +41,8 @@ if (VTKm_ENABLE_HPX)
   vtkm_clear_worklet_unit_tests()
   vtkm_save_worklet_unit_tests(HPX ${unit_tests})
   vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_HPX )
+endif()
+
+if (VTKm_ENABLE_TBB)
+  vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_TBB )
 endif()

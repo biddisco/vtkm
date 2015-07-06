@@ -8,7 +8,7 @@
 ##
 ##  Copyright 2014 Sandia Corporation.
 ##  Copyright 2014 UT-Battelle, LLC.
-##  Copyright 2014. Los Alamos National Security
+##  Copyright 2014 Los Alamos National Security.
 ##
 ##  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 ##  the U.S. Government retains certain rights in this software.
@@ -19,8 +19,11 @@
 ##============================================================================
 
 set(headers
+  MakeTestDataSet.h
   Testing.h
+  TestingArrayHandles.h
   TestingDeviceAdapter.h
+  TestingFancyArrayHandles.h
   )
 
 vtkm_declare_headers(${headers})
@@ -29,9 +32,15 @@ set(unit_tests
   UnitTestArrayHandle.cxx
   UnitTestArrayHandleCompositeVector.cxx
   UnitTestArrayHandleCounting.cxx
+  UnitTestArrayHandleFancy.cxx
+  UnitTestArrayHandleImplicit.cxx
+  UnitTestArrayHandlePermutation.cxx
+  UnitTestArrayHandleTransform.cxx
   UnitTestArrayHandleUniformPointCoordinates.cxx
   UnitTestArrayPortalToIterators.cxx
   UnitTestContTesting.cxx
+  UnitTestDataSetRegular.cxx
+  UnitTestDataSetExplicit.cxx
   UnitTestDeviceAdapterAlgorithmDependency.cxx
   UnitTestDeviceAdapterAlgorithmGeneral.cxx
   UnitTestDeviceAdapterSerial.cxx

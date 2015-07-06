@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -40,9 +40,7 @@ struct TransportTagArrayIn {  };
 template<typename ContObjectType, typename Device>
 struct Transport<vtkm::cont::arg::TransportTagArrayIn, ContObjectType, Device>
 {
-  // If you get a compile error here, it means you tried to use an object that
-  // is not an array handle as an argument that is expected to be one.
-  VTKM_IS_ARRAY_HANDLE(ContObjectType);
+  ///\todo: something equivalent to VTKM_IS_ARRAY_HANDLE(ContObjectType);
 
   typedef typename ContObjectType::template ExecutionTypes<Device>::PortalConst
       ExecObjectType;

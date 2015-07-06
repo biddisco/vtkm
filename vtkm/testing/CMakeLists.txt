@@ -8,7 +8,7 @@
 ##
 ##  Copyright 2014 Sandia Corporation.
 ##  Copyright 2014 UT-Battelle, LLC.
-##  Copyright 2014. Los Alamos National Security
+##  Copyright 2014 Los Alamos National Security.
 ##
 ##  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 ##  the U.S. Government retains certain rights in this software.
@@ -20,6 +20,7 @@
 
 set(headers
   Testing.h
+  TestingMath.h
   OptionParser.h
   VecTraitsTests.h
   )
@@ -29,6 +30,8 @@ VTKM_declare_headers(${headers})
 set(unit_tests
   UnitTestExtent.cxx
   UnitTestListTag.cxx
+  UnitTestMath.cxx
+  UnitTestMatrix.cxx
   UnitTestPair.cxx
   UnitTestTesting.cxx
   UnitTestTypeListTag.cxx

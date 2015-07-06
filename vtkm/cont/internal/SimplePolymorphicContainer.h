@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -22,6 +22,8 @@
 
 #include <vtkm/Types.h>
 
+#include <boost/smart_ptr/shared_ptr.hpp>
+
 namespace vtkm {
 namespace cont {
 namespace internal {
@@ -30,6 +32,9 @@ namespace internal {
 ///
 struct SimplePolymorphicContainerBase {
   virtual ~SimplePolymorphicContainerBase() {  }
+
+  virtual boost::shared_ptr<SimplePolymorphicContainerBase>
+  NewInstance() const = 0;
 };
 
 /// \brief Simple object container that can use C++ run-time type information.
@@ -51,6 +56,12 @@ struct SimplePolymorphicContainer : public SimplePolymorphicContainerBase
 
   VTKM_CONT_EXPORT
   SimplePolymorphicContainer(const T &src) : Item(src) {  }
+
+  virtual boost::shared_ptr<SimplePolymorphicContainerBase> NewInstance() const
+  {
+    return boost::shared_ptr<SimplePolymorphicContainerBase>(
+          new SimplePolymorphicContainer<T>());
+  }
 };
 
 }

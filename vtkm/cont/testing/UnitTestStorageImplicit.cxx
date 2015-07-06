@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -74,13 +74,10 @@ struct TemplatedTests
   {
     StorageType arrayStorage;
 
-    try
-    {
-      arrayStorage.GetNumberOfValues();
-      VTKM_TEST_ASSERT(false == true,
-                       "Implicit Storage GetNumberOfValues method didn't throw error.");
-    }
-    catch(vtkm::cont::ErrorControlBadValue e) {}
+    // The implicit portal defined for this test always returns 1 for the
+    // number of values. We should get that.
+    VTKM_TEST_ASSERT(arrayStorage.GetNumberOfValues() == 1,
+                     "Implicit Storage GetNumberOfValues returned wrong size.");
 
     try
     {
@@ -98,13 +95,9 @@ struct TemplatedTests
     }
     catch(vtkm::cont::ErrorControlBadValue) {}
 
-    try
-    {
-      arrayStorage.ReleaseResources();
-      VTKM_TEST_ASSERT(true==false,
-                       "Can't Release an implicit array");
-    }
-    catch(vtkm::cont::ErrorControlBadValue) {}
+    //verify that calling ReleaseResources doesn't throw an exception
+    arrayStorage.ReleaseResources();
+
   }
 
   void BasicAccess()

@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -19,8 +19,6 @@
 //============================================================================
 #ifndef vtk_m_cont_cuda_internal_DeviceAdapterAlgorithmCuda_h
 #define vtk_m_cont_cuda_internal_DeviceAdapterAlgorithmCuda_h
-
-#include <vtkm/cont/cuda/internal/SetThrustForCuda.h>
 
 #include <vtkm/cont/cuda/internal/DeviceAdapterTagCuda.h>
 #include <vtkm/cont/cuda/internal/ArrayManagerExecutionCuda.h>

@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -50,7 +50,7 @@ class DynamicArrayHandleCast;
 ///
 /// \c DynamicArrayHandle holds an \c ArrayHandle object using runtime
 /// polymorphism to manage different value types and storage rather than
-/// compile-time templates. This adds a programming convienience that helps
+/// compile-time templates. This adds a programming convenience that helps
 /// avoid a proliferation of templates. It also provides the management
 /// necessary to interface VTK-m with data sources where types will not be
 /// known until runtime.
@@ -70,7 +70,7 @@ class DynamicArrayHandleCast;
 /// used. If a type is missing you will get a runtime error. If there are more
 /// types than necessary, then the template mechanism will create a lot of
 /// object code that is never used, and keep in mind that the number of
-/// combinations grows exponentally when using multiple \c DynamicArrayHandle
+/// combinations grows exponentially when using multiple \c DynamicArrayHandle
 /// objects.
 ///
 class DynamicArrayHandle
@@ -172,6 +172,20 @@ public:
   template<typename Functor, typename TypeList, typename StorageList>
   VTKM_CONT_EXPORT
   void CastAndCall(const Functor &f, TypeList, StorageList) const;
+
+  /// \brief Create a new array of the same type as this array.
+  ///
+  /// This method creates a new array that is the same type as this one and
+  /// returns a new dynamic array handle for it. This method is convenient when
+  /// creating output arrays that should be the same type as some input array.
+  ///
+  VTKM_CONT_EXPORT
+  DynamicArrayHandle NewInstance() const
+  {
+    DynamicArrayHandle newArray;
+    newArray.ArrayStorage = this->ArrayStorage->NewInstance();
+    return newArray;
+  }
 
 private:
   boost::shared_ptr<vtkm::cont::internal::SimplePolymorphicContainerBase>
@@ -322,6 +336,13 @@ public:
   void CastAndCall(const Functor &f, TL, CL) const
   {
     this->DynamicArrayHandle::CastAndCall(f, TL(), CL());
+  }
+
+  VTKM_CONT_EXPORT
+  DynamicArrayHandleCast<TypeList,StorageList> NewInstance() const
+  {
+    return DynamicArrayHandleCast<TypeList,StorageList>(
+          this->DynamicArrayHandle::NewInstance());
   }
 };
 

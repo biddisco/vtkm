@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -100,9 +100,9 @@ private:
 
   VTKM_EXEC_CONT_EXPORT
   ValueType GetCoordinatesForTopologyIndex(vtkm::Id3 ijk) const {
-    return ValueType(this->Origin[0] + this->Spacing[0]*ijk[0],
-                     this->Origin[1] + this->Spacing[1]*ijk[1],
-                     this->Origin[2] + this->Spacing[2]*ijk[2]);
+    return ValueType(this->Origin[0] + this->Spacing[0] * static_cast<vtkm::FloatDefault>(ijk[0]),
+                     this->Origin[1] + this->Spacing[1] * static_cast<vtkm::FloatDefault>(ijk[1]),
+                     this->Origin[2] + this->Spacing[2] * static_cast<vtkm::FloatDefault>(ijk[2]));
   }
 };
 
@@ -123,10 +123,12 @@ public:
   typedef vtkm::Vec<vtkm::FloatDefault,3> ValueType;
 
 private:
-  typedef vtkm::cont::ArrayHandle<
-    ValueType,
-    vtkm::cont::StorageTagImplicit<
-      internal::ArrayPortalUniformPointCoordinates> > Superclass;
+  typedef vtkm::cont::StorageTagImplicit<
+      internal::ArrayPortalUniformPointCoordinates> StorageTag;
+
+  typedef vtkm::cont::internal::Storage<ValueType, StorageTag> StorageType;
+
+  typedef vtkm::cont::ArrayHandle<ValueType, StorageTag> Superclass;
 
 public:
   VTKM_CONT_EXPORT
@@ -137,7 +139,9 @@ public:
                                      ValueType origin,
                                      ValueType spacing)
     : Superclass(
-        internal::ArrayPortalUniformPointCoordinates(extent, origin, spacing))
+        StorageType(internal::ArrayPortalUniformPointCoordinates(extent,
+                                                                 origin,
+                                                                 spacing)))
   {  }
 };
 

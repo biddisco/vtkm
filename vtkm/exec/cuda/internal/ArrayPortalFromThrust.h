@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -23,26 +23,22 @@
 #include <vtkm/Types.h>
 
 #include <iterator>
+#include <boost/type_traits/remove_const.hpp>
 
-// Disable GCC warnings we check vtkmfor but Thrust does not.
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+// Disable warnings we check vtkm for but Thrust does not.
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic push
-#endif // gcc version >= 4.6
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 2)
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif // gcc version >= 4.2
-#endif // gcc && !CUDA
-
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif // gcc || clang
 #include <thrust/system/cuda/memory.h>
 
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic pop
-#endif // gcc version >= 4.6
-#endif // gcc && !CUDA
+#endif // gcc || clang
 
+#include <boost/type_traits/integral_constant.hpp>
 #include <boost/utility/enable_if.hpp>
 
 namespace vtkm {
@@ -50,51 +46,185 @@ namespace exec {
 namespace cuda {
 namespace internal {
 
-template<typename T> struct UseTextureLoad      {typedef  boost::false_type type;};
+template<typename T> struct UseScalarTextureLoad            {typedef  boost::false_type type;};
+template<typename T> struct UseVecTextureLoads              {typedef  boost::false_type type;};
+template<typename T> struct UseMultipleScalarTextureLoads   {typedef  boost::false_type type;};
 
-template<> struct UseTextureLoad<vtkm::Int8*>    {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::UInt8*>   {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Int16*>   {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::UInt16*>  {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Int32*>   {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::UInt32*>  {typedef boost::true_type type; };
+//currently CUDA doesn't support texture loading of signed char's so that is why
+//you don't see vtkm::Int8 in any of the lists.
+template<> struct UseScalarTextureLoad< const vtkm::UInt8 >   {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::Int16 >   {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::UInt16 >  {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::Int32 >   {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::UInt32 >  {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::Float32 > {typedef boost::true_type type; };
+template<> struct UseScalarTextureLoad< const vtkm::Float64 > {typedef boost::true_type type; };
 
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::Int32,2>* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::UInt32,2>* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::Int32,4>* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::UInt32,4>* > {typedef boost::true_type type; };
+//CUDA needs vec types converted to CUDA types ( float2, uint2), so we have a special
+//case for these vec texture loads.
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::Int32,2> > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::UInt32,2> > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::Float32,2> > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::Float64,2> > {typedef boost::true_type type; };
 
-template<> struct UseTextureLoad<vtkm::Float32* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Float64* > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::Int32,4> > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::UInt32,4> > {typedef boost::true_type type; };
+template<> struct UseVecTextureLoads< const vtkm::Vec<vtkm::Float32,4> > {typedef boost::true_type type; };
 
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::Float32,2>* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::Float32,4>* > {typedef boost::true_type type; };
-template<> struct UseTextureLoad<vtkm::Vec<vtkm::Float64,2>* > {typedef boost::true_type type; };
+
+//CUDA doesn't support loading 3 wide values through a texture unit by default,
+//so instead we fetch through texture three times and store the result
+//currently CUDA doesn't support texture loading of signed char's so that is why
+//you don't see vtkm::Int8 in any of the lists.
+
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt8,2> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int16,2> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt16,2> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int64,2> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt64,2> > {typedef boost::true_type type; };
+
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt8,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int16,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt16,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int32,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt32,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Float32,3> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Float64,3> > {typedef boost::true_type type; };
+
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt8,4> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int16,4> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt16,4> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Int64,4> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::UInt64,4> > {typedef boost::true_type type; };
+template<> struct UseMultipleScalarTextureLoads< const vtkm::Vec<vtkm::Float64,4> > {typedef boost::true_type type; };
+
 
 //this T type is not one that is valid to be loaded through texture memory
 template<typename T, typename Enable = void>
 struct load_through_texture
 {
   VTKM_EXEC_EXPORT
-  static  T get(const thrust::system::cuda::pointer<T> data)
+  static T get(const thrust::system::cuda::pointer<T>& data)
   {
   return *(data.get());
   }
 };
 
-//this T type is valid to be loaded through texture memory
+//only load through a texture if we have sm 35 support
+
+// this T type is valid to be loaded through a single texture memory fetch
 template<typename T>
-struct load_through_texture<T, typename ::boost::enable_if< typename UseTextureLoad<T>::type >::type >
+struct load_through_texture<T, typename ::boost::enable_if< typename UseScalarTextureLoad<T>::type >::type >
 {
   VTKM_EXEC_EXPORT
-  static T get(const thrust::system::cuda::pointer<T> data)
+  static T get(const thrust::system::cuda::pointer<T>& data)
   {
-  //only load through a texture if we have sm 35 support
-#if __CUDA_ARCH__ >= 350
-  return __ldg(data.get());
-#else
-  return *(data.get());
-#endif
+  #if __CUDA_ARCH__ >= 350
+    // printf("__CUDA_ARCH__ UseScalarTextureLoad");
+    return __ldg(data.get());
+  #else
+    return *(data.get());
+  #endif
+  }
+};
+
+// this T type is valid to be loaded through a single vec texture memory fetch
+template<typename T>
+struct load_through_texture<T, typename ::boost::enable_if< typename UseVecTextureLoads<T>::type >::type >
+{
+  VTKM_EXEC_EXPORT
+  static T get(const thrust::system::cuda::pointer<T>& data)
+  {
+  #if __CUDA_ARCH__ >= 350
+    // printf("__CUDA_ARCH__ UseVecTextureLoads");
+    return getAs(data);
+  #else
+    return *(data.get());
+  #endif
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::Int32,2> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::Int32,2> >& data)
+  {
+  const int2 temp = __ldg((const int2*)data.get());
+  return vtkm::Vec<vtkm::Int32,2>(temp.x, temp.y);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::UInt32,2> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::UInt32,2> >& data)
+  {
+  const uint2 temp = __ldg((const uint2*)data.get());
+  return vtkm::Vec<vtkm::UInt32,2>(temp.x, temp.y);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::Int32,4> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::Int32,4> >& data)
+  {
+  const int4 temp = __ldg((const int4*)data.get());
+  return vtkm::Vec<vtkm::Int32,4>(temp.x, temp.y, temp.z, temp.w);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::UInt32,4> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::UInt32,4> >& data)
+  {
+  const uint4 temp = __ldg((const uint4*)data.get());
+  return vtkm::Vec<vtkm::UInt32,4>(temp.x, temp.y, temp.z, temp.w);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::Float32,2> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::Float32,2> >& data)
+  {
+  const float2 temp = __ldg((const float2*)data.get());
+  return vtkm::Vec<vtkm::Float32,2>(temp.x, temp.y);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::Float32,4> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::Float32,4> >& data)
+  {
+  const float4 temp = __ldg((const float4*)data.get());
+  return vtkm::Vec<vtkm::Float32,4>(temp.x, temp.y, temp.z, temp.w);
+  }
+
+  VTKM_EXEC_EXPORT
+  static vtkm::Vec<vtkm::Float64,2> getAs(const thrust::system::cuda::pointer<const vtkm::Vec<vtkm::Float64,2> >& data)
+  {
+  const double2 temp = __ldg((const double2*)data.get());
+  return vtkm::Vec<vtkm::Float64,2>(temp.x, temp.y);
+  }
+};
+
+
+//this T type is valid to be loaded through multiple texture memory fetches
+template<typename T>
+struct load_through_texture<T, typename ::boost::enable_if< typename UseMultipleScalarTextureLoads<T>::type >::type >
+{
+  typedef typename boost::remove_const<T>::type NonConstT;
+
+  VTKM_EXEC_EXPORT
+  static T get(const thrust::system::cuda::pointer<T>& data)
+  {
+  #if __CUDA_ARCH__ >= 350
+     // printf("__CUDA_ARCH__ UseMultipleScalarTextureLoads");
+    return getAs(data);
+  #else
+    return *(data.get());
+  #endif
+  }
+
+  VTKM_EXEC_EXPORT
+  static T getAs(const thrust::system::cuda::pointer<T>& data)
+  {
+  //we need to fetch each component individually
+  const vtkm::IdComponent NUM_COMPONENTS= T::NUM_COMPONENTS;
+  typedef typename T::ComponentType ComponentType;
+  const ComponentType* recasted_data = (const ComponentType*)(data.get());
+  NonConstT result;
+  #pragma unroll
+  for(vtkm::IdComponent i=0; i < NUM_COMPONENTS; ++i)
+  {
+    result[i] = __ldg(recasted_data+i);
+  }
+  return result;
   }
 };
 
@@ -127,24 +257,14 @@ public:
   template<typename OtherT>
   VTKM_EXEC_CONT_EXPORT
   ArrayPortalFromThrust(const ArrayPortalFromThrust<OtherT> &src)
-    : BeginIterator(src.BeginIterator),
-      EndIterator(src.EndIterator)
+    : BeginIterator(src.GetIteratorBegin()),
+      EndIterator(src.GetIteratorEnd())
   {  }
-
-  template<typename OtherT>
-  VTKM_EXEC_CONT_EXPORT
-  ArrayPortalFromThrust<T> &operator=(
-      const ArrayPortalFromThrust<OtherT> &src)
-  {
-    this->BeginIterator = src.BeginIterator;
-    this->EndIterator = src.EndIterator;
-    return *this;
-  }
 
   VTKM_EXEC_CONT_EXPORT
   vtkm::Id GetNumberOfValues() const {
     // Not using std::distance because on CUDA it cannot be used on a device.
-    return (this->EndIterator - this->BeginIterator);
+    return static_cast<vtkm::Id>( (this->EndIterator - this->BeginIterator) );
   }
 
   VTKM_EXEC_EXPORT
@@ -157,10 +277,10 @@ public:
     *this->IteratorAt(index) = value;
   }
 
-  VTKM_CONT_EXPORT
+  VTKM_EXEC_CONT_EXPORT
   IteratorType GetIteratorBegin() const { return this->BeginIterator.get(); }
 
-  VTKM_CONT_EXPORT
+  VTKM_EXEC_CONT_EXPORT
   IteratorType GetIteratorEnd() const { return this->EndIterator.get(); }
 
 private:
@@ -189,33 +309,26 @@ public:
   ConstArrayPortalFromThrust(const PointerType begin, const PointerType end)
     : BeginIterator( begin ),
       EndIterator( end )
-      {  }
+  {
+    // printf("ConstArrayPortalFromThrust() %s \n", __PRETTY_FUNCTION__ );
+  }
 
   /// Copy constructor for any other ConstArrayPortalFromThrust with an iterator
   /// type that can be copied to this iterator type. This allows us to do any
   /// type casting that the iterators do (like the non-const to const cast).
   ///
-  template<typename OtherT>
+  // template<typename OtherT>
   VTKM_EXEC_CONT_EXPORT
-  ConstArrayPortalFromThrust(const ConstArrayPortalFromThrust<OtherT> &src)
-    : BeginIterator(src.BeginIterator),
-      EndIterator(src.EndIterator)
-  {  }
-
-  template<typename OtherT>
-  VTKM_EXEC_CONT_EXPORT
-  ConstArrayPortalFromThrust<T> &operator=(
-      const ConstArrayPortalFromThrust<OtherT> &src)
+  ConstArrayPortalFromThrust(const ArrayPortalFromThrust<T> &src)
+    : BeginIterator(src.GetIteratorBegin()),
+      EndIterator(src.GetIteratorEnd())
   {
-    this->BeginIterator = src.BeginIterator;
-    this->EndIterator = src.EndIterator;
-    return *this;
   }
 
   VTKM_EXEC_CONT_EXPORT
   vtkm::Id GetNumberOfValues() const {
     // Not using std::distance because on CUDA it cannot be used on a device.
-    return (this->EndIterator - this->BeginIterator);
+    return static_cast<vtkm::Id>( (this->EndIterator - this->BeginIterator) );
   }
 
   VTKM_EXEC_EXPORT
@@ -228,10 +341,10 @@ public:
     *this->IteratorAt(index) = value;
   }
 
-  VTKM_CONT_EXPORT
+  VTKM_EXEC_CONT_EXPORT
   IteratorType GetIteratorBegin() const { return this->BeginIterator.get(); }
 
-  VTKM_CONT_EXPORT
+  VTKM_EXEC_CONT_EXPORT
   IteratorType GetIteratorEnd() const { return this->EndIterator.get(); }
 
 private:

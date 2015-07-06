@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -23,6 +23,7 @@
 
 #include <vtkm/internal/Configure.h>
 #include <vtkm/internal/ExportMacros.h>
+#include <vtkm/TypeTraits.h>
 
 #include <utility>
 
@@ -131,12 +132,37 @@ struct Pair
   }
 };
 
+/// Pairwise Add.
+/// This is done by adding the two objects separately.
+/// Useful for Reduce operation on a zipped array
+template<typename T, typename U>
+VTKM_EXEC_CONT_EXPORT
+vtkm::Pair<T, U> operator+(const vtkm::Pair<T, U>& a, const vtkm::Pair<T, U> &b)
+{
+    return vtkm::Pair<T,U>(a.first + b.first, a.second + b.second);
+}
+
 template <typename T1, typename T2>
 VTKM_EXEC_CONT_EXPORT
 vtkm::Pair<T1,T2> make_Pair(const T1 &firstSrc, const T2 &secondSrc)
 {
   return vtkm::Pair<T1,T2>(firstSrc, secondSrc);
 }
+
+/// Traits for Pair types.
+///
+template<typename T, typename U>
+struct TypeTraits<vtkm::Pair<T,U> >
+{
+  typedef TypeTraitsUnkownTag NumericTag;
+  typedef TypeTraitsScalarTag DimensionalityTag;
+
+  VTKM_EXEC_CONT_EXPORT
+  static vtkm::Pair<T,U> ZeroInitialization()
+  { return vtkm::make_Pair(TypeTraits<T>::ZeroInitialization(),
+                           TypeTraits<U>::ZeroInitialization()); }
+};
+
 
 } // namespace vtkm
 
