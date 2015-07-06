@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -23,6 +23,11 @@
 
 #include <vtkm/internal/Configure.h>
 #include <vtkm/internal/ExportMacros.h>
+
+#include <boost/mpl/or.hpp>
+#include <boost/type_traits/is_floating_point.hpp>
+#include <boost/type_traits/is_signed.hpp>
+#include <boost/utility/enable_if.hpp>
 
 /*!
  * \namespace vtkm
@@ -701,6 +706,15 @@ struct Divide
   }
 };
 
+struct Negate
+{
+  template<typename T>
+  VTKM_EXEC_CONT_EXPORT T operator()(const T &x) const
+  {
+    return -x;
+  }
+};
+
 } // namespace internal
 
 //-----------------------------------------------------------------------------
@@ -725,13 +739,6 @@ protected:
   {
     vtkm::internal::AssignScalarToVec<NUM_COMPONENTS>()(
           this->Components, value);
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  explicit VecBase(const ComponentType* values)
-  {
-    vtkm::internal::VecCopy<ComponentType,NUM_COMPONENTS>()(
-      this->Components, values);
   }
 
   template<typename OtherValueType, typename OtherDerivedType>
@@ -837,7 +844,7 @@ public:
   }
 
   VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Int8 scalar) const
+  DerivedClass operator*(ComponentType scalar) const
   {
     return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
           *reinterpret_cast<const DerivedClass*>(this),
@@ -845,86 +852,6 @@ public:
             ComponentType,vtkm::internal::Multiply>(scalar));
   }
 
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::UInt8 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Int16 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::UInt16 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Int32 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::UInt32 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Int64 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::UInt64 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Float32 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
-
-  VTKM_EXEC_CONT_EXPORT
-  DerivedClass operator*(vtkm::Float64 scalar) const
-  {
-    return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-          *reinterpret_cast<const DerivedClass*>(this),
-          vtkm::internal::BindRightBinaryOp<
-            ComponentType,vtkm::internal::Multiply>(scalar));
-  }
 
   VTKM_EXEC_CONT_EXPORT
   DerivedClass operator/(const DerivedClass &other) const
@@ -970,7 +897,7 @@ public:
 
   VTKM_EXEC_CONT_EXPORT Vec() {}
   VTKM_EXEC_CONT_EXPORT explicit Vec(const T& value) : Superclass(value) {  }
-  VTKM_EXEC_CONT_EXPORT explicit Vec(const T* values) : Superclass(values) {  }
+  // VTKM_EXEC_CONT_EXPORT explicit Vec(const T* values) : Superclass(values) {  }
 
   template<typename OtherType>
   VTKM_EXEC_CONT_EXPORT
@@ -992,7 +919,6 @@ public:
 
   VTKM_EXEC_CONT_EXPORT Vec() {}
   VTKM_EXEC_CONT_EXPORT explicit Vec(const ComponentType&) {  }
-  VTKM_EXEC_CONT_EXPORT explicit Vec(const ComponentType*) {  }
 
   template<typename OtherType>
   VTKM_EXEC_CONT_EXPORT Vec(const Vec<OtherType, NUM_COMPONENTS> &) {  }
@@ -1033,7 +959,6 @@ class Vec<T,2> : public detail::VecBase<T, 2, Vec<T,2> >
 public:
   VTKM_EXEC_CONT_EXPORT Vec() {}
   VTKM_EXEC_CONT_EXPORT explicit Vec(const T& value) : Superclass(value) {  }
-  VTKM_EXEC_CONT_EXPORT explicit Vec(const T* values) : Superclass(values) {  }
 
   template<typename OtherType>
   VTKM_EXEC_CONT_EXPORT Vec(const Vec<OtherType, 2> &src) : Superclass(src) {  }
@@ -1057,7 +982,6 @@ class Vec<T,3> : public detail::VecBase<T, 3, Vec<T,3> >
 public:
   VTKM_EXEC_CONT_EXPORT Vec() {}
   VTKM_EXEC_CONT_EXPORT explicit Vec(const T& value) : Superclass(value) {  }
-  VTKM_EXEC_CONT_EXPORT explicit Vec(const T* values) : Superclass(values) {  }
 
   template<typename OtherType>
   VTKM_EXEC_CONT_EXPORT Vec(const Vec<OtherType, 3> &src) : Superclass(src) {  }
@@ -1083,7 +1007,6 @@ class Vec<T,4> : public detail::VecBase<T, 4, Vec<T,4> >
 public:
   VTKM_EXEC_CONT_EXPORT Vec() {}
   VTKM_EXEC_CONT_EXPORT explicit Vec(const T& value) : Superclass(value) {  }
-  VTKM_EXEC_CONT_EXPORT explicit Vec(const T* values) : Superclass(values) {  }
 
   template<typename OtherType>
   VTKM_EXEC_CONT_EXPORT Vec(const Vec<OtherType, 4> &src) : Superclass(src) {  }
@@ -1159,12 +1082,16 @@ T dot(const vtkm::Vec<T,4> &a, const vtkm::Vec<T,4> &b)
   return (a[0]*b[0]) + (a[1]*b[1]) + (a[2]*b[2]) + (a[3]*b[3]);
 }
 
+//Integer types of a width less than an integer get implicitly casted to
+//an integer when doing a multiplication.
+#define VTK_M_INTEGER_PROMOTION_SCALAR_DOT(type) \
+  VTKM_EXEC_CONT_EXPORT type dot(type a, type b) { return static_cast<type>(a * b); }
+VTK_M_INTEGER_PROMOTION_SCALAR_DOT(vtkm::Int8)
+VTK_M_INTEGER_PROMOTION_SCALAR_DOT(vtkm::UInt8)
+VTK_M_INTEGER_PROMOTION_SCALAR_DOT(vtkm::Int16)
+VTK_M_INTEGER_PROMOTION_SCALAR_DOT(vtkm::UInt16)
 #define VTK_M_SCALAR_DOT(type) \
   VTKM_EXEC_CONT_EXPORT type dot(type a, type b) { return a * b; }
-VTK_M_SCALAR_DOT(vtkm::Int8)
-VTK_M_SCALAR_DOT(vtkm::UInt8)
-VTK_M_SCALAR_DOT(vtkm::Int16)
-VTK_M_SCALAR_DOT(vtkm::UInt16)
 VTK_M_SCALAR_DOT(vtkm::Int32)
 VTK_M_SCALAR_DOT(vtkm::UInt32)
 VTK_M_SCALAR_DOT(vtkm::Int64)
@@ -1178,7 +1105,7 @@ VTK_M_SCALAR_DOT(vtkm::Float64)
 template<typename T>
 struct not_default_constructor
 {
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T &x)
+  VTKM_EXEC_CONT_EXPORT bool operator()(const T &x) const
   {
     return (x  != T());
   }
@@ -1190,92 +1117,29 @@ struct not_default_constructor
 
 template<typename T, vtkm::IdComponent Size>
 VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Int8 scalar, const vtkm::Vec<T, Size> &vec)
+vtkm::Vec<T, Size> operator*(T scalar, const vtkm::Vec<T, Size> &vec)
 {
   return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
         vec,
         vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
 }
 
+// The enable_if for this operator is effectively disabling the negate
+// operator for Vec of unsigned integers. Another approach would be
+// to use disable_if<is_unsigned>. That would be more inclusive but would
+// also allow other types like Vec<Vec<unsigned> >. If necessary, we could
+// change this implementation to be more inclusive.
 template<typename T, vtkm::IdComponent Size>
 VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::UInt8 scalar, const vtkm::Vec<T, Size> &vec)
+typename boost::enable_if<
+  typename boost::mpl::or_<
+    typename boost::is_floating_point<T>::type,
+    typename boost::is_signed<T>::type>::type,
+  vtkm::Vec<T,Size> >::type
+operator-(const vtkm::Vec<T,Size> &x)
 {
   return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Int16 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::UInt16 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Int32 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::UInt32 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Int64 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::UInt64 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Float32 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
-}
-
-template<typename T, vtkm::IdComponent Size>
-VTKM_EXEC_CONT_EXPORT
-vtkm::Vec<T, Size> operator*(vtkm::Float64 scalar, const vtkm::Vec<T, Size> &vec)
-{
-  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
+        x, vtkm::internal::Negate());
 }
 
 #endif //vtk_m_Types_h

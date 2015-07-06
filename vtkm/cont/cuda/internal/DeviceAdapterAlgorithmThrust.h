@@ -9,7 +9,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -21,25 +21,25 @@
 #ifndef vtk_m_cont_cuda_internal_DeviceAdapterThrust_h
 #define vtk_m_cont_cuda_internal_DeviceAdapterThrust_h
 
+#include <vtkm/Types.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ErrorExecution.h>
+#include <vtkm/cont/Timer.h>
+#include <vtkm/TypeTraits.h>
 
 #include <vtkm/cont/cuda/internal/MakeThrustIterator.h>
-#include <vtkm/cont/Timer.h>
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 #include <vtkm/exec/internal/WorkletInvokeFunctor.h>
+#include <vtkm/exec/cuda/internal/WrappedOperators.h>
 
-// Disable GCC warnings we check vtkmfor but Thrust does not.
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+// Disable warnings we check vtkm for but Thrust does not.
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic push
-#endif // gcc version >= 4.6
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 2)
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif // gcc version >= 4.2
-#endif // gcc && !CUDA
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif // gcc || clang
 
 #include <thrust/advance.h>
 #include <thrust/binary_search.h>
@@ -51,12 +51,11 @@
 #include <thrust/system/cuda/vector.h>
 
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/system/cuda/execution_policy.h>
 
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic pop
-#endif // gcc version >= 4.6
-#endif // gcc && !CUDA
+#endif // gcc || clang
 
 namespace vtkm {
 namespace cont {
@@ -76,28 +75,28 @@ void Schedule1DIndexKernel(FunctorType functor, vtkm::Id length)
 
 template<class FunctorType>
 __global__
-void Schedule3DIndexKernel(FunctorType functor, vtkm::Id3 size)
+void Schedule3DIndexKernel(FunctorType functor, dim3 size)
 {
   const vtkm::Id x = blockIdx.x*blockDim.x + threadIdx.x;
   const vtkm::Id y = blockIdx.y*blockDim.y + threadIdx.y;
   const vtkm::Id z = blockIdx.z*blockDim.z + threadIdx.z;
 
-  if (x >= size[0] || y >= size[1] || z >= size[2])
+  if (x >= size.x || y >= size.y || z >= size.z)
     {
     return;
     }
 
   //now convert back to flat memory
-  const int idx = x + size[0]*(y + size[1]*z);
+  const int idx = x + size.x*(y + size.y*z);
   functor( idx );
 }
 
 inline
-void compute_block_size(vtkm::Id3 rangeMax, dim3 blockSize3d, dim3& gridSize3d)
+void compute_block_size(dim3 rangeMax, dim3 blockSize3d, dim3& gridSize3d)
 {
-  gridSize3d.x = (rangeMax[0] % blockSize3d.x != 0) ? (rangeMax[0] / blockSize3d.x + 1) : (rangeMax[0] / blockSize3d.x);
-  gridSize3d.y = (rangeMax[1] % blockSize3d.y != 1) ? (rangeMax[1] / blockSize3d.y + 1) : (rangeMax[1] / blockSize3d.y);
-  gridSize3d.z = (rangeMax[2] % blockSize3d.z != 2) ? (rangeMax[2] / blockSize3d.z + 1) : (rangeMax[2] / blockSize3d.z);
+  gridSize3d.x = (rangeMax.x % blockSize3d.x != 0) ? (rangeMax.x / blockSize3d.x + 1) : (rangeMax.x / blockSize3d.x);
+  gridSize3d.y = (rangeMax.y % blockSize3d.y != 0) ? (rangeMax.y / blockSize3d.y + 1) : (rangeMax.y / blockSize3d.y);
+  gridSize3d.z = (rangeMax.z % blockSize3d.z != 0) ? (rangeMax.z / blockSize3d.z + 1) : (rangeMax.z / blockSize3d.z);
 }
 
 class PerfRecord
@@ -121,14 +120,17 @@ public:
 template<class Functor>
 static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& rangeMax)
 {
+  const dim3 ranges(static_cast<vtkm::UInt32>(rangeMax[0]),
+                    static_cast<vtkm::UInt32>(rangeMax[1]),
+                    static_cast<vtkm::UInt32>(rangeMax[2]) );
   std::vector< PerfRecord > results;
-  int indexTable[16] = {1, 2, 4, 8, 12, 16, 20, 24, 28, 30, 32, 64, 128, 256, 512, 1024};
+  vtkm::UInt32 indexTable[16] = {1, 2, 4, 8, 12, 16, 20, 24, 28, 30, 32, 64, 128, 256, 512, 1024};
 
-  for(int i=0; i < 16; i++)
+  for(vtkm::UInt32 i=0; i < 16; i++)
     {
-    for(int j=0; j < 16; j++)
+    for(vtkm::UInt32 j=0; j < 16; j++)
       {
-      for(int k=0; k < 16; k++)
+      for(vtkm::UInt32 k=0; k < 16; k++)
         {
         cudaEvent_t start, stop;
         cudaEventCreate(&start);
@@ -150,9 +152,9 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
           continue;
           }
 
-        compute_block_size(rangeMax, blockSize3d, gridSize3d);
+        compute_block_size(ranges, blockSize3d, gridSize3d);
         cudaEventRecord(start, 0);
-        Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, rangeMax);
+        Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, ranges);
         cudaEventRecord(stop, 0);
 
         cudaEventSynchronize(stop);
@@ -169,12 +171,14 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
   }
 
   std::sort(results.begin(), results.end());
-  for(int i=results.size()-1; i >= 0; --i)
+  const vtkm::Int64 size = static_cast<vtkm::Int64>(results.size());
+  for(vtkm::Int64 i=1; i <= size; i++)
     {
-    int x = results[i].blockSize.x;
-    int y = results[i].blockSize.y;
-    int z = results[i].blockSize.z;
-    float t = results[i].elapsedTime;
+    vtkm::UInt64 index = static_cast<vtkm::UInt64>(size-i);
+    vtkm::UInt32 x = results[index].blockSize.x;
+    vtkm::UInt32 y = results[index].blockSize.y;
+    vtkm::UInt32 z = results[index].blockSize.z;
+    float t = results[index].elapsedTime;
 
     std::cout << "BlockSize of: " << x << "," << y << "," << z << " required: " << t << std::endl;
     }
@@ -185,9 +189,9 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
-  const vtkm::Id numInstances = rangeMax[0] * rangeMax[1] * rangeMax[2];
-  const int blockSize = 128;
-  const int blocksPerGrid = (numInstances + blockSize - 1) / blockSize;
+  const vtkm::UInt32 numInstances = static_cast<vtkm::UInt32>(rangeMax[0] * rangeMax[1] * rangeMax[2]);
+  const vtkm::UInt32 blockSize = 128;
+  const vtkm::UInt32 blocksPerGrid = (numInstances + blockSize - 1) / blockSize;
 
   cudaEventRecord(start, 0);
   Schedule1DIndexKernel<Functor> <<<blocksPerGrid, blockSize>>> (functor, numInstances);
@@ -212,9 +216,9 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
   dim3 blockSize3d(64,2,1);
   dim3 gridSize3d;
 
-  compute_block_size(rangeMax, blockSize3d, gridSize3d);
+  compute_block_size(ranges, blockSize3d, gridSize3d);
   cudaEventRecord(start, 0);
-  Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, rangeMax);
+  Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, ranges);
   cudaEventRecord(stop, 0);
 
   cudaEventSynchronize(stop);
@@ -246,36 +250,19 @@ private:
   VTKM_CONT_EXPORT static void CopyPortal(const InputPortal &input,
                                          const OutputPortal &output)
   {
-    ::thrust::copy(IteratorBegin(input),
+    ::thrust::copy(thrust::cuda::par,
+                   IteratorBegin(input),
                    IteratorEnd(input),
                    IteratorBegin(output));
   }
 
   template<class InputPortal, class ValuesPortal, class OutputPortal>
   VTKM_CONT_EXPORT static void LowerBoundsPortal(const InputPortal &input,
-                                                const ValuesPortal &values,
-                                                const OutputPortal &output)
+                                                 const ValuesPortal &values,
+                                                 const OutputPortal &output)
   {
-    ::thrust::lower_bound(IteratorBegin(input),
-                          IteratorEnd(input),
-                          IteratorBegin(values),
-                          IteratorEnd(values),
-                          IteratorBegin(output));
-  }
-
-  template<class InputPortal, class ValuesPortal, class OutputPortal,
-           class Compare>
-  VTKM_CONT_EXPORT static void LowerBoundsPortal(const InputPortal &input,
-                                                const ValuesPortal &values,
-                                                const OutputPortal &output,
-                                                Compare comp)
-  {
-    ::thrust::lower_bound(IteratorBegin(input),
-                          IteratorEnd(input),
-                          IteratorBegin(values),
-                          IteratorEnd(values),
-                          IteratorBegin(output),
-                          comp);
+    typedef typename ValuesPortal::ValueType ValueType;
+    LowerBoundsPortal(input, values, output, ::thrust::less<ValueType>() );
   }
 
   template<class InputPortal, class OutputPortal>
@@ -283,11 +270,90 @@ private:
   void LowerBoundsPortal(const InputPortal &input,
                          const OutputPortal &values_output)
   {
-    ::thrust::lower_bound(IteratorBegin(input),
+    typedef typename InputPortal::ValueType ValueType;
+    LowerBoundsPortal(input, values_output, values_output,
+                      ::thrust::less<ValueType>() );
+  }
+
+  template<class InputPortal, class ValuesPortal, class OutputPortal,
+           class BinaryCompare>
+  VTKM_CONT_EXPORT static void LowerBoundsPortal(const InputPortal &input,
+                                                const ValuesPortal &values,
+                                                const OutputPortal &output,
+                                                BinaryCompare binary_compare)
+  {
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,
+                                            BinaryCompare> bop(binary_compare);
+    ::thrust::lower_bound(thrust::cuda::par,
+                          IteratorBegin(input),
                           IteratorEnd(input),
-                          IteratorBegin(values_output),
-                          IteratorEnd(values_output),
-                          IteratorBegin(values_output));
+                          IteratorBegin(values),
+                          IteratorEnd(values),
+                          IteratorBegin(output),
+                          bop);
+  }
+
+  template<class InputPortal>
+  VTKM_CONT_EXPORT static
+  typename InputPortal::ValueType ReducePortal(const InputPortal &input,
+                            typename InputPortal::ValueType initialValue)
+  {
+    typedef typename InputPortal::ValueType ValueType;
+    return ReducePortal(input,
+                        initialValue,
+                        ::thrust::plus<ValueType>());
+  }
+
+  template<class InputPortal, class BinaryFunctor>
+  VTKM_CONT_EXPORT static
+  typename InputPortal::ValueType ReducePortal(const InputPortal &input,
+                            typename InputPortal::ValueType initialValue,
+                            BinaryFunctor binary_functor)
+  {
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename InputPortal::ValueType,
+                                                      BinaryFunctor> bop(binary_functor);
+    return ::thrust::reduce(thrust::cuda::par,
+                            IteratorBegin(input),
+                            IteratorEnd(input),
+                            initialValue,
+                            bop);
+  }
+
+  template<class KeysPortal, class ValuesPortal,
+           class KeysOutputPortal, class ValueOutputPortal,
+           class BinaryFunctor>
+  VTKM_CONT_EXPORT static
+  vtkm::Id ReduceByKeyPortal(const KeysPortal &keys,
+                             const ValuesPortal& values,
+                             const KeysOutputPortal &keys_output,
+                             const ValueOutputPortal &values_output,
+                             BinaryFunctor binary_functor)
+  {
+    typedef typename detail::IteratorTraits<KeysOutputPortal>::IteratorType
+                                                             KeysIteratorType;
+    typedef typename detail::IteratorTraits<ValueOutputPortal>::IteratorType
+                                                             ValuesIteratorType;
+
+    KeysIteratorType keys_out_begin = IteratorBegin(keys_output);
+    ValuesIteratorType values_out_begin = IteratorBegin(values_output);
+
+    ::thrust::pair< KeysIteratorType, ValuesIteratorType > result_iterators;
+
+    ::thrust::equal_to<typename KeysPortal::ValueType> binaryPredicate;
+
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename ValuesPortal::ValueType,
+                                                      BinaryFunctor> bop(binary_functor);
+    result_iterators = ::thrust::reduce_by_key(thrust::cuda::par,
+                                               IteratorBegin(keys),
+                                               IteratorEnd(keys),
+                                               IteratorBegin(values),
+                                               keys_out_begin,
+                                               values_out_begin,
+                                               binaryPredicate,
+                                               bop);
+
+    return static_cast<vtkm::Id>( ::thrust::distance(keys_out_begin,
+                                                     result_iterators.first) );
   }
 
   template<class InputPortal, class OutputPortal>
@@ -295,16 +361,39 @@ private:
   typename InputPortal::ValueType ScanExclusivePortal(const InputPortal &input,
                                                       const OutputPortal &output)
   {
+    typedef typename InputPortal::ValueType ValueType;
+
+    return ScanExclusivePortal(input,
+                               output,
+                               (::thrust::plus<ValueType>()) );
+
+  }
+
+    template<class InputPortal, class OutputPortal, class BinaryOperation>
+  VTKM_CONT_EXPORT static
+  typename InputPortal::ValueType ScanExclusivePortal(const InputPortal &input,
+                                                      const OutputPortal &output,
+                                                      BinaryOperation binaryOp)
+  {
     // Use iterator to get value so that thrust device_ptr has chance to handle
     // data on device.
-    typename InputPortal::ValueType inputEnd = *(IteratorEnd(input) - 1);
+    typedef typename InputPortal::ValueType ValueType;
+    ValueType inputEnd = *(IteratorEnd(input) - 1);
 
-    ::thrust::exclusive_scan(IteratorBegin(input),
-                             IteratorEnd(input),
-                             IteratorBegin(output));
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<ValueType,
+                                                      BinaryOperation> bop(binaryOp);
+
+    typedef typename detail::IteratorTraits<OutputPortal>::IteratorType
+                                                            IteratorType;
+    IteratorType end = ::thrust::exclusive_scan(thrust::cuda::par,
+                                                IteratorBegin(input),
+                                                IteratorEnd(input),
+                                                IteratorBegin(output),
+                                                vtkm::TypeTraits<ValueType>::ZeroInitialization(),
+                                                bop);
 
     //return the value at the last index in the array, as that is the sum
-    return *(IteratorEnd(output) - 1) + inputEnd;
+    return binaryOp( *(end-1), inputEnd);
   }
 
   template<class InputPortal, class OutputPortal>
@@ -312,106 +401,112 @@ private:
   typename InputPortal::ValueType ScanInclusivePortal(const InputPortal &input,
                                                       const OutputPortal &output)
   {
-    ::thrust::inclusive_scan(IteratorBegin(input),
-                             IteratorEnd(input),
-                             IteratorBegin(output));
+    typedef typename InputPortal::ValueType ValueType;
+    return ScanInclusivePortal(input, output, ::thrust::plus<ValueType>() );
+  }
+
+  template<class InputPortal, class OutputPortal, class BinaryFunctor>
+  VTKM_CONT_EXPORT static
+  typename InputPortal::ValueType ScanInclusivePortal(const InputPortal &input,
+                                                      const OutputPortal &output,
+                                                      BinaryFunctor binary_functor)
+  {
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename InputPortal::ValueType,
+                                                      BinaryFunctor> bop(binary_functor);
+
+    typedef typename detail::IteratorTraits<OutputPortal>::IteratorType
+                                                            IteratorType;
+
+    IteratorType end = ::thrust::inclusive_scan(thrust::cuda::par,
+                                                IteratorBegin(input),
+                                                IteratorEnd(input),
+                                                IteratorBegin(output),
+                                                bop);
 
     //return the value at the last index in the array, as that is the sum
-    return *(IteratorEnd(output) - 1);
+    return *(end-1);
   }
 
   template<class ValuesPortal>
   VTKM_CONT_EXPORT static void SortPortal(const ValuesPortal &values)
   {
-    ::thrust::sort(IteratorBegin(values),
-                   IteratorEnd(values));
+    typedef typename ValuesPortal::ValueType ValueType;
+    SortPortal(values, ::thrust::less<ValueType>());
   }
 
-  template<class ValuesPortal, class Compare>
+  template<class ValuesPortal, class BinaryCompare>
   VTKM_CONT_EXPORT static void SortPortal(const ValuesPortal &values,
-                                         Compare comp)
+                                         BinaryCompare binary_compare)
   {
-    ::thrust::sort(IteratorBegin(values),
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    ::thrust::sort(thrust::cuda::par,
+                   IteratorBegin(values),
                    IteratorEnd(values),
-                   comp);
+                   bop);
   }
 
 
   template<class KeysPortal, class ValuesPortal>
   VTKM_CONT_EXPORT static void SortByKeyPortal(const KeysPortal &keys,
-                                              const ValuesPortal &values)
+                                               const ValuesPortal &values)
   {
-    ::thrust::sort_by_key(IteratorBegin(keys),
-                          IteratorEnd(keys),
-                          IteratorBegin(values));
+    typedef typename KeysPortal::ValueType ValueType;
+    SortByKeyPortal(keys,values,::thrust::less<ValueType>());
   }
 
-  template<class KeysPortal, class ValuesPortal, class Compare>
+  template<class KeysPortal, class ValuesPortal, class BinaryCompare>
   VTKM_CONT_EXPORT static void SortByKeyPortal(const KeysPortal &keys,
-                                              const ValuesPortal &values,
-                                              Compare comp)
+                                               const ValuesPortal &values,
+                                               BinaryCompare binary_compare)
   {
-    ::thrust::sort_by_key(IteratorBegin(keys),
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    ::thrust::sort_by_key(thrust::cuda::par,
+                          IteratorBegin(keys),
                           IteratorEnd(keys),
                           IteratorBegin(values),
-                          comp);
-  }
-
-
-
-  template<class StencilPortal>
-  VTKM_CONT_EXPORT static vtkm::Id CountIfPortal(const StencilPortal &stencil)
-  {
-    typedef typename StencilPortal::ValueType ValueType;
-    return ::thrust::count_if(IteratorBegin(stencil),
-                              IteratorEnd(stencil),
-                              ::vtkm::not_default_constructor<ValueType>());
+                          bop);
   }
 
   template<class ValueIterator,
            class StencilPortal,
-           class OutputPortal>
-  VTKM_CONT_EXPORT static void CopyIfPortal(ValueIterator valuesBegin,
-                                           ValueIterator valuesEnd,
-                                           const StencilPortal &stencil,
-                                           const OutputPortal &output)
-  {
-    typedef typename StencilPortal::ValueType ValueType;
-    ::thrust::copy_if(valuesBegin,
-                      valuesEnd,
-                      IteratorBegin(stencil),
-                      IteratorBegin(output),
-                      ::vtkm::not_default_constructor<ValueType>());
-  }
-
-  template<class ValueIterator,
-           class StencilArrayHandle,
-           class OutputArrayHandle>
-  VTKM_CONT_EXPORT static void RemoveIf(ValueIterator valuesBegin,
-                                       ValueIterator valuesEnd,
-                                       const StencilArrayHandle& stencil,
-                                       OutputArrayHandle& output)
-  {
-    vtkm::Id numLeft = CountIfPortal(stencil.PrepareForInput(DeviceAdapterTag()));
-
-    CopyIfPortal(valuesBegin,
-                 valuesEnd,
-                 stencil.PrepareForInput(DeviceAdapterTag()),
-                 output.PrepareForOutput(numLeft, DeviceAdapterTag()));
-  }
-
-  template<class InputPortal,
-           class StencilArrayHandle,
-           class OutputArrayHandle>
+           class OutputPortal,
+           class UnaryPredicate>
   VTKM_CONT_EXPORT static
-  void StreamCompactPortal(const InputPortal& inputPortal,
-                           const StencilArrayHandle &stencil,
-                           OutputArrayHandle& output)
+  vtkm::Id CopyIfPortal(ValueIterator valuesBegin,
+                        ValueIterator valuesEnd,
+                        StencilPortal stencil,
+                        OutputPortal output,
+                        UnaryPredicate unary_predicate)
   {
-    RemoveIf(IteratorBegin(inputPortal),
-             IteratorEnd(inputPortal),
-             stencil,
-             output);
+    typedef typename detail::IteratorTraits<OutputPortal>::IteratorType
+                                                            IteratorType;
+
+    IteratorType outputBegin = IteratorBegin(output);
+    IteratorType newLast = ::thrust::copy_if(thrust::cuda::par,
+                                             valuesBegin,
+                                             valuesEnd,
+                                             IteratorBegin(stencil),
+                                             outputBegin,
+                                             unary_predicate);
+
+    return static_cast<vtkm::Id>( ::thrust::distance(outputBegin, newLast) );
+  }
+
+    template<class ValuePortal,
+             class StencilPortal,
+             class OutputPortal,
+             class UnaryPredicate>
+  VTKM_CONT_EXPORT static
+  vtkm::Id CopyIfPortal(ValuePortal values,
+                        StencilPortal stencil,
+                        OutputPortal output,
+                        UnaryPredicate unary_predicate)
+  {
+    return CopyIfPortal(IteratorBegin(values),
+                        IteratorEnd(values),
+                        stencil,
+                        output,
+                        unary_predicate);
   }
 
   template<class ValuesPortal>
@@ -421,19 +516,25 @@ private:
     typedef typename detail::IteratorTraits<ValuesPortal>::IteratorType
                                                             IteratorType;
     IteratorType begin = IteratorBegin(values);
-    IteratorType newLast = ::thrust::unique(begin, IteratorEnd(values));
-    return ::thrust::distance(begin, newLast);
+    IteratorType newLast = ::thrust::unique(thrust::cuda::par,
+                                            begin,
+                                            IteratorEnd(values));
+    return static_cast<vtkm::Id>( ::thrust::distance(begin, newLast) );
   }
 
-  template<class ValuesPortal, class Compare>
+  template<class ValuesPortal, class BinaryCompare>
   VTKM_CONT_EXPORT static
-  vtkm::Id UniquePortal(const ValuesPortal values, Compare comp)
+  vtkm::Id UniquePortal(const ValuesPortal values, BinaryCompare binary_compare)
   {
     typedef typename detail::IteratorTraits<ValuesPortal>::IteratorType
                                                             IteratorType;
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
     IteratorType begin = IteratorBegin(values);
-    IteratorType newLast = ::thrust::unique(begin, IteratorEnd(values), comp);
-    return ::thrust::distance(begin, newLast);
+    IteratorType newLast = ::thrust::unique(thrust::cuda::par,
+                                            begin,
+                                            IteratorEnd(values),
+                                            bop);
+    return static_cast<vtkm::Id>( ::thrust::distance(begin, newLast) );
   }
 
   template<class InputPortal, class ValuesPortal, class OutputPortal>
@@ -442,7 +543,8 @@ private:
                          const ValuesPortal &values,
                          const OutputPortal &output)
   {
-    ::thrust::upper_bound(IteratorBegin(input),
+    ::thrust::upper_bound(thrust::cuda::par,
+                          IteratorBegin(input),
                           IteratorEnd(input),
                           IteratorBegin(values),
                           IteratorEnd(values),
@@ -451,18 +553,20 @@ private:
 
 
   template<class InputPortal, class ValuesPortal, class OutputPortal,
-           class Compare>
+           class BinaryCompare>
   VTKM_CONT_EXPORT static void UpperBoundsPortal(const InputPortal &input,
                                                 const ValuesPortal &values,
                                                 const OutputPortal &output,
-                                                Compare comp)
+                                                BinaryCompare binary_compare)
   {
-    ::thrust::upper_bound(IteratorBegin(input),
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    ::thrust::upper_bound(thrust::cuda::par,
+                          IteratorBegin(input),
                           IteratorEnd(input),
                           IteratorBegin(values),
                           IteratorEnd(values),
                           IteratorBegin(output),
-                          comp);
+                          bop);
   }
 
   template<class InputPortal, class OutputPortal>
@@ -470,7 +574,8 @@ private:
   void UpperBoundsPortal(const InputPortal &input,
                          const OutputPortal &values_output)
   {
-    ::thrust::upper_bound(IteratorBegin(input),
+    ::thrust::upper_bound(thrust::cuda::par,
+                          IteratorBegin(input),
                           IteratorEnd(input),
                           IteratorBegin(values_output),
                           IteratorEnd(values_output),
@@ -480,12 +585,18 @@ private:
 //-----------------------------------------------------------------------------
 
 public:
-  template<typename T, class SIn, class SOut>
+  template<typename T, typename U, class SIn, class SOut>
   VTKM_CONT_EXPORT static void Copy(
       const vtkm::cont::ArrayHandle<T,SIn> &input,
-      vtkm::cont::ArrayHandle<T,SOut> &output)
+      vtkm::cont::ArrayHandle<U,SOut> &output)
   {
-    vtkm::Id numberOfValues = input.GetNumberOfValues();
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
+
+    //We need call PrepareForInput on the input argument before invoking a
+    //function. The order of execution of parameters of a function is undefined
+    //so we need to make sure input is called before output, or else in-place
+    //use case breaks.
+    input.PrepareForInput(DeviceAdapterTag());
     CopyPortal(input.PrepareForInput(DeviceAdapterTag()),
                output.PrepareForOutput(numberOfValues, DeviceAdapterTag()));
   }
@@ -502,18 +613,18 @@ public:
                       output.PrepareForOutput(numberOfValues, DeviceAdapterTag()));
   }
 
-  template<typename T, class SIn, class SVal, class SOut, class Compare>
+  template<typename T, class SIn, class SVal, class SOut, class BinaryCompare>
   VTKM_CONT_EXPORT static void LowerBounds(
       const vtkm::cont::ArrayHandle<T,SIn>& input,
       const vtkm::cont::ArrayHandle<T,SVal>& values,
       vtkm::cont::ArrayHandle<vtkm::Id,SOut>& output,
-      Compare comp)
+      BinaryCompare binary_compare)
   {
     vtkm::Id numberOfValues = values.GetNumberOfValues();
     LowerBoundsPortal(input.PrepareForInput(DeviceAdapterTag()),
                       values.PrepareForInput(DeviceAdapterTag()),
                       output.PrepareForOutput(numberOfValues, DeviceAdapterTag()),
-                      comp);
+                      binary_compare);
   }
 
   template<class SIn, class SOut>
@@ -525,35 +636,126 @@ public:
                       values_output.PrepareForInPlace(DeviceAdapterTag()));
   }
 
+ template<typename T, class SIn>
+  VTKM_CONT_EXPORT static T Reduce(
+      const vtkm::cont::ArrayHandle<T,SIn> &input,
+      T initialValue)
+  {
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
+    if (numberOfValues <= 0)
+      {
+      return initialValue;
+      }
+    return ReducePortal(input.PrepareForInput( DeviceAdapterTag() ),
+                        initialValue);
+  }
+
+ template<typename T, class SIn, class BinaryFunctor>
+  VTKM_CONT_EXPORT static T Reduce(
+      const vtkm::cont::ArrayHandle<T,SIn> &input,
+      T initialValue,
+      BinaryFunctor binary_functor)
+  {
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
+    if (numberOfValues <= 0)
+      {
+      return initialValue;
+      }
+    return ReducePortal(input.PrepareForInput( DeviceAdapterTag() ),
+                        initialValue,
+                        binary_functor);
+  }
+
+ template<typename T, typename U, class KIn, class VIn, class KOut, class VOut,
+          class BinaryFunctor>
+  VTKM_CONT_EXPORT static void ReduceByKey(
+      const vtkm::cont::ArrayHandle<T,KIn> &keys,
+      const vtkm::cont::ArrayHandle<U,VIn> &values,
+      vtkm::cont::ArrayHandle<T,KOut> &keys_output,
+      vtkm::cont::ArrayHandle<U,VOut> &values_output,
+      BinaryFunctor binary_functor)
+  {
+    //there is a concern that by default we will allocate too much
+    //space for the keys/values output. 1 option is to
+    const vtkm::Id numberOfValues = keys.GetNumberOfValues();
+    if (numberOfValues <= 0)
+      {
+      return;
+      }
+    vtkm::Id reduced_size =
+            ReduceByKeyPortal(keys.PrepareForInput( DeviceAdapterTag() ),
+                              values.PrepareForInput( DeviceAdapterTag() ),
+                              keys_output.PrepareForOutput( numberOfValues, DeviceAdapterTag() ),
+                              values_output.PrepareForOutput( numberOfValues, DeviceAdapterTag() ),
+                              binary_functor);
+
+    keys_output.Shrink( reduced_size );
+    values_output.Shrink( reduced_size );
+  }
+
   template<typename T, class SIn, class SOut>
   VTKM_CONT_EXPORT static T ScanExclusive(
       const vtkm::cont::ArrayHandle<T,SIn> &input,
       vtkm::cont::ArrayHandle<T,SOut>& output)
   {
-    vtkm::Id numberOfValues = input.GetNumberOfValues();
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
     if (numberOfValues <= 0)
       {
       output.PrepareForOutput(0, DeviceAdapterTag());
-      return 0;
+      return vtkm::TypeTraits<T>::ZeroInitialization();
       }
 
+    //We need call PrepareForInput on the input argument before invoking a
+    //function. The order of execution of parameters of a function is undefined
+    //so we need to make sure input is called before output, or else in-place
+    //use case breaks.
+    input.PrepareForInput(DeviceAdapterTag());
     return ScanExclusivePortal(input.PrepareForInput(DeviceAdapterTag()),
                                output.PrepareForOutput(numberOfValues, DeviceAdapterTag()));
   }
+
   template<typename T, class SIn, class SOut>
   VTKM_CONT_EXPORT static T ScanInclusive(
       const vtkm::cont::ArrayHandle<T,SIn> &input,
       vtkm::cont::ArrayHandle<T,SOut>& output)
   {
-    vtkm::Id numberOfValues = input.GetNumberOfValues();
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
     if (numberOfValues <= 0)
       {
       output.PrepareForOutput(0, DeviceAdapterTag());
-      return 0;
+      return vtkm::TypeTraits<T>::ZeroInitialization();
       }
 
+    //We need call PrepareForInput on the input argument before invoking a
+    //function. The order of execution of parameters of a function is undefined
+    //so we need to make sure input is called before output, or else in-place
+    //use case breaks.
+    input.PrepareForInput(DeviceAdapterTag());
     return ScanInclusivePortal(input.PrepareForInput(DeviceAdapterTag()),
                                output.PrepareForOutput(numberOfValues, DeviceAdapterTag()));
+  }
+
+  template<typename T, class SIn, class SOut, class BinaryFunctor>
+  VTKM_CONT_EXPORT static T ScanInclusive(
+      const vtkm::cont::ArrayHandle<T,SIn> &input,
+      vtkm::cont::ArrayHandle<T,SOut>& output,
+      BinaryFunctor binary_functor)
+  {
+    const vtkm::Id numberOfValues = input.GetNumberOfValues();
+    if (numberOfValues <= 0)
+      {
+      output.PrepareForOutput(0, DeviceAdapterTag());
+      return vtkm::TypeTraits<T>::ZeroInitialization();
+      }
+
+    //We need call PrepareForInput on the input argument before invoking a
+    //function. The order of execution of parameters of a function is undefined
+    //so we need to make sure input is called before output, or else in-place
+    //use case breaks.
+    input.PrepareForInput(DeviceAdapterTag());
+    return ScanInclusivePortal(input.PrepareForInput(DeviceAdapterTag()),
+                               output.PrepareForOutput(numberOfValues, DeviceAdapterTag()),
+                               binary_functor);
   }
 
 // Because of some funny code conversions in nvcc, kernels for devices have to
@@ -603,8 +805,8 @@ public:
 
     functor.SetErrorMessageBuffer(errorMessage);
 
-    const int blockSize = 128;
-    const int blocksPerGrid = (numInstances + blockSize - 1) / blockSize;
+    const vtkm::UInt32 blockSize = 128;
+    const vtkm::UInt32 blocksPerGrid = (static_cast<vtkm::UInt32>(numInstances) + blockSize - 1) / blockSize;
 
     Schedule1DIndexKernel<Functor> <<<blocksPerGrid, blockSize>>> (functor, numInstances);
 
@@ -643,6 +845,9 @@ public:
     //requires the errormessage buffer be set
     compare_3d_schedule_patterns(functor,rangeMax);
 #endif
+    const dim3 ranges(static_cast<vtkm::UInt32>(rangeMax[0]),
+                      static_cast<vtkm::UInt32>(rangeMax[1]),
+                      static_cast<vtkm::UInt32>(rangeMax[2]) );
 
     //currently we presume that 3d scheduling access patterns prefer accessing
     //memory in the X direction. Also should be good for thin in the Z axis
@@ -658,8 +863,8 @@ public:
       }
 
     dim3 gridSize3d;
-    compute_block_size(rangeMax, blockSize3d, gridSize3d);
-    Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, rangeMax);
+    compute_block_size(ranges, blockSize3d, gridSize3d);
+    Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, ranges);
 
     //sync so that we can check the results of the call.
     //In the future I want move this before the schedule call, and throwing
@@ -681,12 +886,12 @@ public:
     SortPortal(values.PrepareForInPlace(DeviceAdapterTag()));
   }
 
-  template<typename T, class Storage, class Compare>
+  template<typename T, class Storage, class BinaryCompare>
   VTKM_CONT_EXPORT static void Sort(
       vtkm::cont::ArrayHandle<T,Storage>& values,
-      Compare comp)
+      BinaryCompare binary_compare)
   {
-    SortPortal(values.PrepareForInPlace(DeviceAdapterTag()),comp);
+    SortPortal(values.PrepareForInPlace(DeviceAdapterTag()),binary_compare);
   }
 
   template<typename T, typename U,
@@ -701,15 +906,15 @@ public:
 
   template<typename T, typename U,
            class StorageT, class StorageU,
-           class Compare>
+           class BinaryCompare>
   VTKM_CONT_EXPORT static void SortByKey(
       vtkm::cont::ArrayHandle<T,StorageT>& keys,
       vtkm::cont::ArrayHandle<U,StorageU>& values,
-      Compare comp)
+      BinaryCompare binary_compare)
   {
     SortByKeyPortal(keys.PrepareForInPlace(DeviceAdapterTag()),
                     values.PrepareForInPlace(DeviceAdapterTag()),
-                    comp);
+                    binary_compare);
   }
 
 
@@ -718,12 +923,13 @@ public:
       const vtkm::cont::ArrayHandle<T,SStencil>& stencil,
       vtkm::cont::ArrayHandle<vtkm::Id,SOut>& output)
   {
-    vtkm::Id stencilSize = stencil.GetNumberOfValues();
-
-    RemoveIf(::thrust::make_counting_iterator<vtkm::Id>(0),
-             ::thrust::make_counting_iterator<vtkm::Id>(stencilSize),
-             stencil,
-             output);
+    vtkm::Id size = stencil.GetNumberOfValues();
+    vtkm::Id newSize = CopyIfPortal(::thrust::make_counting_iterator<vtkm::Id>(0),
+                                    ::thrust::make_counting_iterator<vtkm::Id>(size),
+                                    stencil.PrepareForInput(DeviceAdapterTag()),
+                                    output.PrepareForOutput(size, DeviceAdapterTag()),
+                                    ::vtkm::not_default_constructor<T>());
+    output.Shrink(newSize);
   }
 
   template<typename T,
@@ -736,7 +942,32 @@ public:
       const vtkm::cont::ArrayHandle<T,SStencil>& stencil,
       vtkm::cont::ArrayHandle<U,SOut>& output)
   {
-    StreamCompactPortal(input.PrepareForInput(DeviceAdapterTag()), stencil, output);
+    vtkm::Id size = stencil.GetNumberOfValues();
+    vtkm::Id newSize = CopyIfPortal(input.PrepareForInput(DeviceAdapterTag()),
+                                    stencil.PrepareForInput(DeviceAdapterTag()),
+                                    output.PrepareForOutput(size, DeviceAdapterTag()),
+                                    ::vtkm::not_default_constructor<T>()); //yes on the stencil
+    output.Shrink(newSize);
+  }
+
+  template<typename T,
+           typename U,
+           class SIn,
+           class SStencil,
+           class SOut,
+           class UnaryPredicate>
+  VTKM_CONT_EXPORT static void StreamCompact(
+      const vtkm::cont::ArrayHandle<U,SIn>& input,
+      const vtkm::cont::ArrayHandle<T,SStencil>& stencil,
+      vtkm::cont::ArrayHandle<U,SOut>& output,
+      UnaryPredicate unary_predicate)
+  {
+    vtkm::Id size = stencil.GetNumberOfValues();
+    vtkm::Id newSize = CopyIfPortal(input.PrepareForInput(DeviceAdapterTag()),
+                                    stencil.PrepareForInput(DeviceAdapterTag()),
+                                    output.PrepareForOutput(size, DeviceAdapterTag()),
+                                    unary_predicate);
+    output.Shrink(newSize);
   }
 
   template<typename T, class Storage>
@@ -748,12 +979,12 @@ public:
     values.Shrink(newSize);
   }
 
-  template<typename T, class Storage, class Compare>
+  template<typename T, class Storage, class BinaryCompare>
   VTKM_CONT_EXPORT static void Unique(
       vtkm::cont::ArrayHandle<T,Storage> &values,
-      Compare comp)
+      BinaryCompare binary_compare)
   {
-    vtkm::Id newSize = UniquePortal(values.PrepareForInPlace(DeviceAdapterTag()),comp);
+    vtkm::Id newSize = UniquePortal(values.PrepareForInPlace(DeviceAdapterTag()),binary_compare);
 
     values.Shrink(newSize);
   }
@@ -770,18 +1001,18 @@ public:
                       output.PrepareForOutput(numberOfValues, DeviceAdapterTag()));
   }
 
-  template<typename T, class SIn, class SVal, class SOut, class Compare>
+  template<typename T, class SIn, class SVal, class SOut, class BinaryCompare>
   VTKM_CONT_EXPORT static void UpperBounds(
       const vtkm::cont::ArrayHandle<T,SIn>& input,
       const vtkm::cont::ArrayHandle<T,SVal>& values,
       vtkm::cont::ArrayHandle<vtkm::Id,SOut>& output,
-      Compare comp)
+      BinaryCompare binary_compare)
   {
     vtkm::Id numberOfValues = values.GetNumberOfValues();
     UpperBoundsPortal(input.PrepareForInput(DeviceAdapterTag()),
                       values.PrepareForInput(DeviceAdapterTag()),
                       output.PrepareForOutput(numberOfValues, DeviceAdapterTag()),
-                      comp);
+                      binary_compare);
   }
 
   template<class SIn, class SOut>

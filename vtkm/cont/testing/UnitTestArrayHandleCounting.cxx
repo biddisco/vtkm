@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -47,6 +47,8 @@ public:
     }
   }
 
+  operator vtkm::Id() const { return vtkm::Id(this->Value.size()); }
+
   StringInt operator+(const StringInt &rhs) const
   {
     return StringInt(this->Value + rhs.Value);
@@ -69,6 +71,11 @@ private:
   std::string Value;
 };
 
+} // anonymous namespace
+
+VTKM_BASIC_TYPE_VECTOR(StringInt)
+
+namespace {
 
 template< typename ValueType>
 struct TemplatedTests

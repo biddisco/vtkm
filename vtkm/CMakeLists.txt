@@ -8,7 +8,7 @@
 ##
 ##  Copyright 2014 Sandia Corporation.
 ##  Copyright 2014 UT-Battelle, LLC.
-##  Copyright 2014. Los Alamos National Security
+##  Copyright 2014 Los Alamos National Security.
 ##
 ##  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 ##  the U.S. Government retains certain rights in this software.
@@ -21,14 +21,21 @@
 include_directories(${Boost_INCLUDE_DIRS})
 
 set(headers
+  CellType.h
   Extent.h
   ListTag.h
+  Math.h
+  Matrix.h
   Pair.h
+  RegularConnectivity.h
+  RegularStructure.h
   TypeListTag.h
   Types.h
   TypeTraits.h
   VecTraits.h
   )
+
+vtkm_pyexpander_generated_file(Math.h)
 
 vtkm_declare_headers(${headers})
 

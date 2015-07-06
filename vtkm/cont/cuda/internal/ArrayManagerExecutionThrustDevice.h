@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -20,31 +20,25 @@
 #ifndef vtk_m_cont_cuda_internal_ArrayManagerExecutionThrustDevice_h
 #define vtk_m_cont_cuda_internal_ArrayManagerExecutionThrustDevice_h
 
-#include <vtkm/cont/Storage.h>
+#include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/ErrorControlOutOfMemory.h>
+#include <vtkm/cont/Storage.h>
 
-#include <iostream>
-
-// Disable GCC warnings we check vtkmfor but Thrust does not.
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+// Disable warnings we check vtkm for but Thrust does not.
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic push
-#endif // gcc version >= 4.6
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 2)
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif // gcc version >= 4.2
-#endif // gcc && !CUDA
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif // gcc || clang
 
 #include <thrust/system/cuda/vector.h>
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/copy.h>
 
-#if defined(__GNUC__) && !defined(VTKM_CUDA)
-#if (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 6)
+#if defined(__GNUC__) || defined(____clang__)
 #pragma GCC diagnostic pop
-#endif // gcc version >= 4.6
-#endif // gcc && !CUDA
+#endif // gcc || clang
 
 #include <vtkm/exec/cuda/internal/ArrayPortalFromThrust.h>
 
@@ -71,30 +65,30 @@ template<typename T>
 
 /// \c ArrayManagerExecutionThrustDevice provides an implementation for a \c
 /// ArrayManagerExecution class for a thrust device adapter that is designed
-/// for the cuda backend which has separate memory spaces for host and device. This
-/// implementation contains a ::thrust::system::cuda::vector to allocate and manage
-/// the array.
+/// for the cuda backend which has separate memory spaces for host and device.
+/// This implementation contains a ::thrust::system::cuda::vector to allocate
+/// and manage the array.
 ///
-/// This array manager should only be used with the cuda device adapter,
-/// since in the future it will take advantage of texture memory and
-/// the unique memory access patterns of cuda systems.
 template<typename T, class StorageTag>
 class ArrayManagerExecutionThrustDevice
 {
 public:
   typedef T ValueType;
+  typedef typename thrust::system::cuda::pointer<T>::difference_type difference_type;
 
-  typedef vtkm::cont::internal::Storage<ValueType, StorageTag> ContainerType;
+  typedef vtkm::cont::internal::Storage<ValueType, StorageTag> StorageType;
 
   typedef vtkm::exec::cuda::internal::ArrayPortalFromThrust< T > PortalType;
   typedef vtkm::exec::cuda::internal::ConstArrayPortalFromThrust< const T > PortalConstType;
 
-  VTKM_CONT_EXPORT ArrayManagerExecutionThrustDevice():
-    Array()
+  VTKM_CONT_EXPORT
+  ArrayManagerExecutionThrustDevice(StorageType *storage)
+    : Storage(storage), Array()
   {
 
   }
 
+  VTKM_CONT_EXPORT
   ~ArrayManagerExecutionThrustDevice()
   {
     this->ReleaseResources();
@@ -102,66 +96,86 @@ public:
 
   /// Returns the size of the array.
   ///
-  VTKM_CONT_EXPORT vtkm::Id GetNumberOfValues() const {
-    return this->Array.size();
+  VTKM_CONT_EXPORT
+  vtkm::Id GetNumberOfValues() const {
+    return static_cast<vtkm::Id>(this->Array.size());
   }
 
   /// Allocates the appropriate size of the array and copies the given data
   /// into the array.
   ///
-  template<class PortalControl>
-  VTKM_CONT_EXPORT void LoadDataForInput(PortalControl arrayPortal)
+  VTKM_CONT_EXPORT
+  PortalConstType PrepareForInput(bool updateData)
   {
-    //don't bind to the texture yet, as we could have allocate the array
-    //on a previous call with AllocateArrayForOutput and now are directly
-    //calling get portal const
-    try
-      {
-      this->Array.assign(arrayPortal.GetRawIterator(),
-                         arrayPortal.GetRawIterator() + arrayPortal.GetNumberOfValues());
-      }
-    catch (std::bad_alloc error)
-      {
-      throw vtkm::cont::ErrorControlOutOfMemory(error.what());
-      }
+    if (updateData)
+    {
+      this->CopyToExecution();
+    }
+    else // !updateData
+    {
+      // The data in this->Array should already be valid.
+    }
+
+
+    return PortalConstType(this->Array.data(),
+                           this->Array.data() + static_cast<difference_type>(this->Array.size()));
   }
 
   /// Allocates the appropriate size of the array and copies the given data
   /// into the array.
   ///
-  template<class PortalControl>
-  VTKM_CONT_EXPORT void LoadDataForInPlace(PortalControl arrayPortal)
+  VTKM_CONT_EXPORT
+  PortalType PrepareForInPlace(bool updateData)
   {
-    this->LoadDataForInput(arrayPortal);
+    if (updateData)
+    {
+      this->CopyToExecution();
+    }
+    else // !updateData
+    {
+      // The data in this->Array should already be valid.
+    }
+
+    return PortalType(this->Array.data(),
+                      this->Array.data() + static_cast<difference_type>(this->Array.size()));
   }
 
   /// Allocates the array to the given size.
   ///
-  VTKM_CONT_EXPORT void AllocateArrayForOutput(
-      ContainerType &vtkmNotUsed(container),
-      vtkm::Id numberOfValues)
+  VTKM_CONT_EXPORT
+  PortalType PrepareForOutput(vtkm::Id numberOfValues)
   {
+    if (numberOfValues > this->GetNumberOfValues())
+    {
+      // Resize to 0 first so that you don't have to copy data when resizing
+      // to a larger size.
+      this->Array.clear();
+    }
+
     try
       {
-      this->Array.resize(numberOfValues);
+      this->Array.resize(static_cast<vtkm::UInt64>(numberOfValues));
       }
     catch (std::bad_alloc error)
       {
       throw vtkm::cont::ErrorControlOutOfMemory(error.what());
       }
 
-
+    return PortalType(this->Array.data(),
+                      this->Array.data() + static_cast<difference_type>(this->Array.size()));
   }
 
-  /// Allocates enough space in \c controlArray and copies the data in the
+  /// Allocates enough space in \c storage and copies the data in the
   /// device vector into it.
   ///
-  VTKM_CONT_EXPORT void RetrieveOutputData(ContainerType &controlArray) const
+  VTKM_CONT_EXPORT
+  void RetrieveOutputData(StorageType *storage) const
   {
-    controlArray.Allocate(this->Array.size());
-    ::thrust::copy( this->Array.data(),
-                    this->Array.data() + this->Array.size(),
-                   controlArray.GetPortal().GetRawIterator());
+    storage->Allocate(static_cast<vtkm::Id>(this->Array.size()));
+    ::thrust::copy(
+          this->Array.data(),
+          this->Array.data() + static_cast<difference_type>(this->Array.size()),
+          vtkm::cont::ArrayPortalToIteratorBegin(storage->GetPortal()));
   }
 
   /// Resizes the device vector.
@@ -170,21 +184,9 @@ public:
   {
     // The operation will succeed even if this assertion fails, but this
     // is still supposed to be a precondition to Shrink.
-    VTKM_ASSERT_CONT(numberOfValues <= this->Array.size());
+    VTKM_ASSERT_CONT(numberOfValues <= static_cast<vtkm::Id>(this->Array.size()));
 
-    this->Array.resize(numberOfValues);
-  }
-
-  VTKM_CONT_EXPORT PortalType GetPortal()
-  {
-    return PortalType( this->Array.data(),
-                       this->Array.data() + this->Array.size());
-  }
-
-  VTKM_CONT_EXPORT PortalConstType GetPortalConst() const
-  {
-    return PortalConstType( this->Array.data(),
-                            this->Array.data() + this->Array.size());
+    this->Array.resize(static_cast<vtkm::UInt64>(numberOfValues));
   }
 
 
@@ -203,8 +205,25 @@ private:
   void operator=(
       ArrayManagerExecutionThrustDevice<T, StorageTag> &);
 
+  StorageType *Storage;
+
   ::thrust::system::cuda::vector<ValueType,
                                  UninitializedAllocator<ValueType> > Array;
+
+  VTKM_CONT_EXPORT
+  void CopyToExecution()
+  {
+    try
+    {
+      this->Array.assign(
+            vtkm::cont::ArrayPortalToIteratorBegin(this->Storage->GetPortalConst()),
+            vtkm::cont::ArrayPortalToIteratorEnd(this->Storage->GetPortalConst()));
+    }
+    catch (std::bad_alloc error)
+    {
+      throw vtkm::cont::ErrorControlOutOfMemory(error.what());
+    }
+  }
 };
 
 

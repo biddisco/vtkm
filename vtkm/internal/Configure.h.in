@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -87,7 +87,19 @@
 #cmakedefine VTKM_NO_VARIADIC_TEMPLATE
 #if !defined(VTKM_USE_VARIADIC_TEMPLATE) && !defined(VTKM_NO_VARIADIC_TEMPLATE)
 // Currently using Boost to determine support.
+
+# if defined(__GNUC__) || defined(____clang__)
+#   pragma GCC diagnostic push
+#   pragma GCC diagnostic ignored "-Wconversion"
+# endif // gcc || clang
+
 # include <boost/config.hpp>
+
+
+# if defined(__GNUC__) || defined(____clang__)
+#   pragma GCC diagnostic pop
+# endif // gcc || clang
+
 # if defined(BOOST_HAS_VARIADIC_TMPL)
 #  define VTKM_USE_VARIADIC_TEMPLATE 1
 # endif

@@ -8,7 +8,7 @@
 ##
 ##  Copyright 2014 Sandia Corporation.
 ##  Copyright 2014 UT-Battelle, LLC.
-##  Copyright 2014. Los Alamos National Security
+##  Copyright 2014 Los Alamos National Security.
 ##
 ##  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 ##  the U.S. Government retains certain rights in this software.
@@ -19,8 +19,12 @@
 ##============================================================================
 
 set(headers
+  Assert.h
   ExecutionObjectBase.h
+  ExecutionWholeArray.h
+  ExplicitConnectivity.h
   FunctorBase.h
+  TopologyData.h
   )
 
 #-----------------------------------------------------------------------------
@@ -28,6 +32,12 @@ add_subdirectory(internal)
 add_subdirectory(arg)
 
 vtkm_declare_headers(${impl_headers} ${headers})
+
+
+#-----------------------------------------------------------------------------
+if (VTKm_ENABLE_CUDA)
+  add_subdirectory(cuda)
+endif ()
 
 
 #-----------------------------------------------------------------------------

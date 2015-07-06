@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -28,7 +28,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -56,6 +56,73 @@ void CheckTypeSizes()
   VTKM_TEST_ASSERT(sizeof(vtkm::UInt64) == 8, "UInt64 wrong size.");
   VTKM_TEST_ASSERT(sizeof(vtkm::Float32) == 4, "Float32 wrong size.");
   VTKM_TEST_ASSERT(sizeof(vtkm::Float64) == 8, "Float32 wrong size.");
+}
+
+// This part of the test has to be broken out of GeneralVecTypeTest because
+// the negate operation is only supported on vectors of signed types.
+template<typename ComponentType, vtkm::IdComponent Size>
+void DoGeneralVecTypeTestNegate(const vtkm::Vec<ComponentType,Size> &)
+{
+  typedef vtkm::Vec<ComponentType,Size> VectorType;
+  for (vtkm::Id valueIndex = 0; valueIndex < 10; valueIndex++)
+  {
+    VectorType original = TestValue(valueIndex, VectorType());
+    VectorType negative = -original;
+
+    for (vtkm::IdComponent componentIndex = 0;
+         componentIndex < Size;
+         componentIndex++)
+    {
+      VTKM_TEST_ASSERT(
+            test_equal(-(original[componentIndex]), negative[componentIndex]),
+            "Vec did not negate correctly.");
+    }
+
+    VTKM_TEST_ASSERT(test_equal(original, -negative),
+                     "Double Vec negative is not positive.");
+  }
+}
+
+template<typename ComponentType, vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<ComponentType,Size> &)
+{
+  // Do not test the negate operator unless it is a negatable type.
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Int8,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Int16,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Int32,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Int64,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Float32,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
+}
+
+template<vtkm::IdComponent Size>
+void GeneralVecTypeTestNegate(const vtkm::Vec<vtkm::Float64,Size> &x)
+{
+  DoGeneralVecTypeTestNegate(x);
 }
 
 //general type test
@@ -144,6 +211,8 @@ void GeneralVecTypeTest(const vtkm::Vec<ComponentType,Size> &)
 
   VTKM_TEST_ASSERT( (c != a), "operator != wrong");
   VTKM_TEST_ASSERT( (a != c), "operator != wrong");
+
+  GeneralVecTypeTestNegate(T());
 }
 
 template<typename ComponentType, vtkm::IdComponent Size>

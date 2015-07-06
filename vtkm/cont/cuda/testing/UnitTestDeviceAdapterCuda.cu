@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -25,38 +25,6 @@
 
 #include <vtkm/cont/testing/TestingDeviceAdapter.h>
 #include <vtkm/cont/cuda/internal/testing/Testing.h>
-
-namespace vtkm {
-namespace cont {
-namespace testing {
-
-template<>
-struct CopyInto<vtkm::cont::DeviceAdapterTagCuda>
-{
-  template<typename T, typename StorageTagType>
-  VTKM_CONT_EXPORT
-  void operator()( vtkm::cont::internal::ArrayManagerExecution<
-                    T,
-                    StorageTagType,
-                    vtkm::cont::DeviceAdapterTagCuda>& manager,
-                 T* start)
-  {
-    typedef vtkm::cont::internal::Storage< T, StorageTagType > StorageType;
-    StorageType outputArray;
-    std::cout << "now calling RetrieveOutputData: " << std::endl;
-    manager.RetrieveOutputData( outputArray );
-
-    vtkm::cont::ArrayPortalToIterators<
-                typename StorageType::PortalConstType>
-      iterators(outputArray.GetPortalConst());
-     std::copy(iterators.GetBegin(), iterators.GetEnd(), start);
-  }
-};
-
-
-}
-}
-}
 
 int UnitTestDeviceAdapterCuda(int, char *[])
 {

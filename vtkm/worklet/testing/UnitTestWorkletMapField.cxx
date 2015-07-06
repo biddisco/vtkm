@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -26,6 +26,8 @@
 
 #include <vtkm/cont/testing/Testing.h>
 
+
+namespace mapfield{
 namespace worklets {
 
 class TestWorklet : public vtkm::worklet::WorkletMapField
@@ -73,7 +75,7 @@ public:
 
 } // worklet namespace
 
-namespace {
+
 
 static const vtkm::Id ARRAY_SIZE = 10;
 
@@ -123,18 +125,18 @@ void TestWorkletMapField()
 
   std::cout << "--- Worklet accepting all types." << std::endl;
   vtkm::testing::Testing::TryTypes(
-                         DoTestWorklet< ::worklets::TestWorklet >(),
+                         mapfield::DoTestWorklet< worklets::TestWorklet >(),
                          vtkm::TypeListTagCommon());
 
   std::cout << "--- Worklet accepting some types." << std::endl;
   vtkm::testing::Testing::TryTypes(
-                         DoTestWorklet< ::worklets::TestWorkletLimitedTypes >(),
+                         mapfield::DoTestWorklet< worklets::TestWorkletLimitedTypes >(),
                          vtkm::TypeListTagFieldScalar());
 
   std::cout << "--- Sending bad type to worklet." << std::endl;
   try
   {
-    DoTestWorklet< ::worklets::TestWorkletLimitedTypes > badWorkletTest;
+    DoTestWorklet< worklets::TestWorkletLimitedTypes > badWorkletTest;
     badWorkletTest( vtkm::Vec<vtkm::Float32,3>() );
     VTKM_TEST_FAIL("Did not throw expected error.");
   }
@@ -144,9 +146,9 @@ void TestWorkletMapField()
   }
 }
 
-} // anonymous namespace
+} // mapfield namespace
 
 int UnitTestWorkletMapField(int, char *[])
 {
-  return vtkm::cont::testing::Testing::Run(TestWorkletMapField);
+  return vtkm::cont::testing::Testing::Run(mapfield::TestWorkletMapField);
 }

@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -24,6 +24,13 @@
 
 #include <vtkm/internal/IndexTag.h>
 
+
+// Disable conversion warnings inside boost
+# if defined(__GNUC__) || defined(____clang__)
+#   pragma GCC diagnostic push
+#   pragma GCC diagnostic ignored "-Wconversion"
+# endif // gcc || clang
+
 #include <boost/function_types/components.hpp>
 #include <boost/function_types/function_arity.hpp>
 #include <boost/function_types/function_type.hpp>
@@ -38,6 +45,12 @@
 #include <boost/mpl/less.hpp>
 #include <boost/mpl/push_back.hpp>
 #include <boost/utility/enable_if.hpp>
+
+
+# if defined(__GNUC__) || defined(____clang__)
+#   pragma GCC diagnostic pop
+# endif // gcc || clang
+
 
 #include <vtkm/internal/FunctionInterfaceDetailPre.h>
 

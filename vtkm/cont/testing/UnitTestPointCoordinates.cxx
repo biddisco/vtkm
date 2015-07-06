@@ -8,7 +8,7 @@
 //
 //  Copyright 2014 Sandia Corporation.
 //  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014. Los Alamos National Security
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -94,15 +94,17 @@ struct TestPointCoordinatesArray
     std::cout << "Testing PointCoordinatesArray" << std::endl;
 
     std::cout << "  Creating buffer of data values" << std::endl;
-    std::vector<Vector3> buffer(ARRAY_SIZE);
+
+    std::vector<Vector3> buffer( static_cast<vtkm::UInt32>(ARRAY_SIZE) );
     for (vtkm::Id index = 0; index < ARRAY_SIZE; index++)
     {
-      buffer[index] = ExpectedCoordinates(index);
+      vtkm::UInt32 i = static_cast<vtkm::UInt32>(index);
+      buffer[i] = ExpectedCoordinates(index);
     }
 
     std::cout << "  Creating and checking array handle" << std::endl;
     vtkm::cont::ArrayHandle<Vector3,StorageTag> array =
-        vtkm::cont::make_ArrayHandle(buffer, StorageTag());
+        vtkm::cont::make_ArrayHandle(buffer);
     CheckArray()(array);
 
     std::cout << "  Creating and checking PointCoordinatesArray" << std::endl;
