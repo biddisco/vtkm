@@ -85,7 +85,7 @@ template <typename T>
 VTKM_EXEC_EXPORT
 T normalize(T v)
 {
-  return ((1.0f / sqrt(vtkm::dot(v,v))) * v);
+  return v * (1.0f / sqrt(vtkm::dot(v,v)));
 }
 
 template< typename FieldType>
