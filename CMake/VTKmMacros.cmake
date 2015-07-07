@@ -246,6 +246,7 @@ function(vtkm_unit_tests)
   endif (VTKm_ENABLE_TESTING)
 endfunction(vtkm_unit_tests)
 
+#--------------------------------------------------
 # Save the worklets to test with each device adapter
 # Usage:
 #
@@ -253,6 +254,7 @@ endfunction(vtkm_unit_tests)
 #
 # notes: will save the sources absolute path as the
 # vtkm_source_worklet_unit_tests global property
+#--------------------------------------------------
 function(vtkm_save_worklet_unit_tests )
   set(options HPX)
   set(oneValueArgs)
@@ -318,6 +320,7 @@ function(vtkm_clear_worklet_unit_tests)
                 PROPERTY vtkm_worklet_unit_tests_drivers "")
 endfunction(vtkm_clear_worklet_unit_tests)
 
+#--------------------------------------------------
 # Call each worklet test for the given device adapter
 # Usage:
 #
@@ -326,6 +329,7 @@ endfunction(vtkm_clear_worklet_unit_tests)
 # notes: will look for the vtkm_source_worklet_unit_tests global
 # property to find what are the worklet unit tests that need to be
 # compiled for the give device adapter
+#--------------------------------------------------
 function(vtkm_worklet_unit_tests device_adapter)
 
   set(unit_test_srcs)
