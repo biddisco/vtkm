@@ -25,6 +25,7 @@
 #include <vtkm/cont/Assert.h>
 
 #include <boost/iterator/iterator_facade.hpp>
+#include <boost/mpl/assert.hpp>
 
 namespace vtkm {
 namespace cont {
@@ -83,7 +84,7 @@ class IteratorFromArrayPortal : public
     boost::iterator_facade<
       IteratorFromArrayPortal<ArrayPortalType>,
       typename ArrayPortalType::ValueType,
-      boost::random_access_traversal_tag,
+      std::random_access_iterator_tag,
       detail::IteratorFromArrayPortalValue<ArrayPortalType>,
       vtkm::Id>
 {
