@@ -17,8 +17,8 @@
 //  Laboratory (LANL), the U.S. Government retains certain rights in
 //  this software.
 //============================================================================
-#ifndef vtk_hpx_h
-#define vtk_hpx_h
+#ifndef vtkm_hpx_h
+#define vtkm_hpx_h
 
 // squash windows #defines before #including hpx
 #define NOMINMAX
@@ -33,4 +33,4 @@
 // squash windows #defines FTER #INCLUDING HPX
 #undef GetMessage
 
-#endif //vtk_hpx_h
+#endif //vtkm_hpx_h

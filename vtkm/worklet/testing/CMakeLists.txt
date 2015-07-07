@@ -26,14 +26,16 @@ set(unit_tests
   UnitTestWorkletMapFieldMultiParam.cxx
   UnitTestWorkletMapTopologyExplicit.cxx
   UnitTestWorkletMapTopologyRegular.cxx
-  UnitTestVertexClustering.cxx
+#  UnitTestVertexClustering.cxx
   )
 
-vtkm_save_worklet_unit_tests(${unit_tests})
-
+vtkm_clear_worklet_unit_tests()
+vtkm_save_worklet_unit_tests(SERIAL ${unit_tests})
 vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_SERIAL )
 
 if (VTKm_ENABLE_CUDA)
+  vtkm_clear_worklet_unit_tests()
+  vtkm_save_worklet_unit_tests(CUDA ${unit_tests})
   vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_CUDA )
 endif()
 
@@ -44,5 +46,7 @@ if (VTKm_ENABLE_HPX)
 endif()
 
 if (VTKm_ENABLE_TBB)
+  vtkm_clear_worklet_unit_tests()
+  vtkm_save_worklet_unit_tests(TBB ${unit_tests})
   vtkm_worklet_unit_tests( VTKM_DEVICE_ADAPTER_TBB )
 endif()

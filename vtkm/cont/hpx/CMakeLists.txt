@@ -18,6 +18,8 @@
 ##  this software.
 ##============================================================================
 
+message("Inside hpx cmake")
+
 set(headers
   DeviceAdapterHPX.h
   internal/ArrayManagerExecutionHPX.h  

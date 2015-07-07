@@ -189,16 +189,24 @@ function(vtkm_unit_tests)
     #we use UnitTests_kit_ so that it is an unique key to exclude from coverage
     set(test_prog UnitTests_kit_${kit})
     if(VTKm_UT_HPX)
+      message("Extra include 1")
       create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES}
         EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
     else()
       create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES})
     endif()
     if (VTKm_UT_CUDA)
+#      list(APPEND CUDA_NVCC_FLAGS "-bigobj")
       cuda_add_executable(${test_prog} ${TestSources})
+        set_property(TARGET ${test_prog}
+                   APPEND PROPERTY COMPILE_FLAGS
+                   "/bigobj"
+                   )
+        message("Target ${test_prog} has bigobj")
     elseif (VTKm_UT_HPX)
       link_directories(${Boost_LIBRARY_DIRS})
       add_executable(${test_prog}  ${TestSources})
+      message("Extra CONFIG include 1")
       target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
       hpx_setup_target(${test_prog})
     else ()
@@ -226,6 +234,7 @@ function(vtkm_unit_tests)
                    APPEND PROPERTY COMPILE_FLAGS
                    "/bigobj"
                    )
+        message("Target ${test_prog} has bigobj")
       endif()
     endif (VTKm_UT_CUDA)
 
@@ -256,7 +265,7 @@ endfunction(vtkm_unit_tests)
 # vtkm_source_worklet_unit_tests global property
 #--------------------------------------------------
 function(vtkm_save_worklet_unit_tests )
-  set(options HPX)
+  set(options HPX CUDA TBB SERIAL)
   set(oneValueArgs)
   set(multiValueArgs)
   cmake_parse_arguments(VTKm_UT
@@ -269,6 +278,7 @@ function(vtkm_save_worklet_unit_tests )
   #the test driver expect the test files to be in the same
   #directory as the test driver
   if(VTKm_UT_HPX)
+    message("Extra include 2")
     create_test_sourcelist(test_sources WorkletTestDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS}
       EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
   else()
@@ -362,6 +372,7 @@ function(vtkm_worklet_unit_tests device_adapter)
     list(APPEND CUDA_NVCC_FLAGS "-DVTKM_DEVICE_ADAPTER=${device_adapter}")
     list(APPEND CUDA_NVCC_FLAGS "-DBOOST_SP_DISABLE_THREADS")
     list(APPEND CUDA_NVCC_FLAGS "-w")
+    list(APPEND CUDA_NVCC_FLAGS "/bigobj")
   endif()
 
   if("${device_adapter}" STREQUAL "VTKM_DEVICE_ADAPTER_HPX")
@@ -378,9 +389,27 @@ function(vtkm_worklet_unit_tests device_adapter)
 
     if(is_cuda)
       cuda_add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
+      if(MSVC)
+        #disable MSVC CRT and SCL warnings as they recommend using non standard
+        #c++ extensions
+        #enable bigobj support so that
+        set_property(TARGET ${test_prog}
+                   APPEND PROPERTY COMPILE_DEFINITIONS
+                   "_SCL_SECURE_NO_WARNINGS"
+                   "_CRT_SECURE_NO_WARNINGS"
+                   )
+
+        #enable large object support 2^32 addressable sections
+        set_property(TARGET ${test_prog}
+                   APPEND PROPERTY COMPILE_FLAGS
+                   "/bigobj"
+                   )
+        message("Target ${test_prog} has bigobj")
+      endif()
     elseif(is_hpx)
       link_directories(${Boost_LIBRARY_DIRS})
       add_executable(${test_prog} ${unit_test_drivers} ${unit_test_srcs})
+      message("Extra CONFIG include 2")
       target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
       target_link_libraries(${test_prog} hpx hpx_init ${Boost_LIBRARIES})
     else()
