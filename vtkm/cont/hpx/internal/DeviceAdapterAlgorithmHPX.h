@@ -53,6 +53,8 @@ private:
   typedef vtkm::cont::DeviceAdapterTagHPX Device;
 
 public:
+
+  //----------------------------------------------------------------------------
   template<typename T, class CIn, class COut>
   VTKM_CONT_EXPORT static T ScanInclusive(
       const vtkm::cont::ArrayHandle<T,CIn> &input,
@@ -68,9 +70,9 @@ public:
     PortalIn inputPortal = input.PrepareForInput(Device());
     PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
-    if (numberOfValues <= 0) { return 0; }
+    T result = T();
+    if (numberOfValues <= 0) { return result; }
 
-    T result =  0;
 /*
     std::cout << "\nInput values " ;
     std::copy(
@@ -97,6 +99,55 @@ public:
     return result;
   }
 
+  //----------------------------------------------------------------------------
+  template<typename T, class CIn, class COut, class BinaryFunctor>
+  VTKM_CONT_EXPORT static T ScanInclusive(
+      const vtkm::cont::ArrayHandle<T,CIn> &input,
+      vtkm::cont::ArrayHandle<T,COut> &output,
+      BinaryFunctor binary_functor)
+  {
+      typedef typename vtkm::cont::ArrayHandle<T,COut>
+          ::template ExecutionTypes<Device>::Portal PortalOut;
+      typedef typename vtkm::cont::ArrayHandle<T,CIn>
+          ::template ExecutionTypes<Device>::PortalConst PortalIn;
+
+      vtkm::Id numberOfValues = input.GetNumberOfValues();
+
+      PortalIn inputPortal = input.PrepareForInput(Device());
+      PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
+
+      T result = T();
+      if (numberOfValues <= 0) { return result; }
+
+  /*
+      std::cout << "\nInput values " ;
+      std::copy(
+        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
+        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+        std::ostream_iterator<T>(std::cout, ", ")
+      );
+  */
+
+      hpx::parallel::inclusive_scan(hpx::parallel::par,
+        vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+        vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
+        T(),
+        binary_functor);
+
+  /*
+      std::cout << "\nOutput values " ;
+      std::copy(
+        vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
+        vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
+        std::ostream_iterator<T>(std::cout, ", ")
+      );
+  */
+      result =  outputPortal.Get(numberOfValues - 1);
+      return result;
+}
+
+  //----------------------------------------------------------------------------
   template<typename T, class CIn, class COut>
   VTKM_CONT_EXPORT static T ScanExclusive(
       const vtkm::cont::ArrayHandle<T,CIn> &input,
@@ -112,9 +163,8 @@ public:
     PortalIn inputPortal = input.PrepareForInput(Device());
     PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
-    if (numberOfValues <= 0) { return 0; }
-     
-    T result =  0;
+    T result = T();
+    if (numberOfValues <= 0) { return result; }
 
     // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue = 
     hpx::parallel::exclusive_scan(hpx::parallel::par, 
@@ -126,7 +176,40 @@ public:
     return result;
   }
 
+  //----------------------------------------------------------------------------
+  template<typename T, class CIn, class COut, class BinaryFunctor>
+  VTKM_CONT_EXPORT static T ScanExclusive(
+      const vtkm::cont::ArrayHandle<T,CIn> &input,
+      vtkm::cont::ArrayHandle<T,COut> &output,
+      BinaryFunctor binary_functor,
+      const T& initialValue)
+  {
+    typedef typename vtkm::cont::ArrayHandle<T,COut>
+        ::template ExecutionTypes<Device>::Portal PortalOut;
+    typedef typename vtkm::cont::ArrayHandle<T,CIn>
+        ::template ExecutionTypes<Device>::PortalConst PortalIn;
+
+    vtkm::Id numberOfValues = input.GetNumberOfValues();
+
+    PortalIn inputPortal = input.PrepareForInput(Device());
+    PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
+
+    T result = T();
+    if (numberOfValues <= 0) { return result; }
+
+    // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
+    hpx::parallel::exclusive_scan(hpx::parallel::par,
+      vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+      vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
+      initialValue, binary_functor);
+
+    result =  outputPortal.Get(numberOfValues - 1) + inputPortal.Get(numberOfValues - 1);
+    return result;
+  }
+
 private:
+  //----------------------------------------------------------------------------
   // This runs in the execution environment.
   template<class FunctorType>
   class ScheduleKernel
@@ -146,6 +229,7 @@ private:
   };
 
 public:
+  //----------------------------------------------------------------------------
   template<class Functor>
   VTKM_CONT_EXPORT static void Schedule(Functor functor,
                                         vtkm::Id numInstances)
@@ -172,6 +256,7 @@ public:
     }
   }
 
+  //----------------------------------------------------------------------------
   template<class FunctorType>
   VTKM_CONT_EXPORT
   static void Schedule(FunctorType functor, vtkm::Id3 rangeMax)
@@ -180,6 +265,7 @@ public:
                                      rangeMax[0] * rangeMax[1] * rangeMax[2] );
   }
 
+  //----------------------------------------------------------------------------
   template<typename T, class Storage>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values)
   {
@@ -191,6 +277,7 @@ public:
     std::sort(iterators.GetBegin(), iterators.GetEnd());
   }
 
+  //----------------------------------------------------------------------------
   template<typename T, class Storage, class Compare>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values,
                                     Compare comp)
@@ -203,6 +290,7 @@ public:
     std::sort(iterators.GetBegin(), iterators.GetEnd(), comp);
   }
 
+  //----------------------------------------------------------------------------
   VTKM_CONT_EXPORT static void Synchronize()
   {
     // Nothing to do. This device is HPX and has no asynchronous operations.
