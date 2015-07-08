@@ -254,7 +254,7 @@ endfunction(vtkm_unit_tests)
 # notes: will save the sources absolute path as the
 # vtkm_source_worklet_unit_tests global property
 function(vtkm_save_worklet_unit_tests )
-  set(options HPX)
+  set(options HPX CUDA TBB SERIAL)
   set(oneValueArgs)
   set(multiValueArgs)
   cmake_parse_arguments(VTKm_UT
@@ -267,15 +267,16 @@ function(vtkm_save_worklet_unit_tests )
   #the test driver expect the test files to be in the same
   #directory as the test driver
   if(VTKm_UT_HPX)
-    create_test_sourcelist(test_sources WorkletTestDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS}
+    create_test_sourcelist(test_sources WorkletTestDriver_HPX.cxx ${VTKm_UT_UNPARSED_ARGUMENTS}
       EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
+    set(driver ${CMAKE_CURRENT_BINARY_DIR}/WorkletTestDriver_HPX.cxx)
   else()
     create_test_sourcelist(test_sources WorkletTestDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS})
+    set(driver ${CMAKE_CURRENT_BINARY_DIR}/WorkletTestDriver.cxx)
   endif()
 
   #store the absolute path for the test drive and all the test
   #files
-  set(driver ${CMAKE_CURRENT_BINARY_DIR}/WorkletTestDriver.cxx)
   set(cxx_sources)
   set(cu_sources)
 
