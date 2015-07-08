@@ -127,13 +127,14 @@ public:
         std::ostream_iterator<T>(std::cout, ", ")
       );
   */
+      internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
 
       hpx::parallel::inclusive_scan(hpx::parallel::par,
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
         T(),
-        binary_functor);
+        wrappedOp);
 
   /*
       std::cout << "\nOutput values " ;
@@ -197,12 +198,14 @@ public:
     T result = T();
     if (numberOfValues <= 0) { return result; }
 
+    internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
     // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
     hpx::parallel::exclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
-      initialValue, binary_functor);
+      initialValue,
+      wrappedOp);
 
     result =  outputPortal.Get(numberOfValues - 1) + inputPortal.Get(numberOfValues - 1);
     return result;
@@ -278,16 +281,18 @@ public:
   }
 
   //----------------------------------------------------------------------------
-  template<typename T, class Storage, class Compare>
+  template<typename T, class Storage, class BinaryFunctor>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values,
-                                    Compare comp)
+          BinaryFunctor binary_functor)
   {
     typedef typename vtkm::cont::ArrayHandle<T,Storage>
         ::template ExecutionTypes<Device>::Portal PortalType;
 
+    internal::WrappedBinaryOperator<bool, BinaryFunctor> wrappedOp( binary_functor );
+
     PortalType arrayPortal = values.PrepareForInPlace(Device());
     vtkm::cont::ArrayPortalToIterators<PortalType> iterators(arrayPortal);
-    std::sort(iterators.GetBegin(), iterators.GetEnd(), comp);
+    std::sort(iterators.GetBegin(), iterators.GetEnd(), wrappedOp);
   }
 
   //----------------------------------------------------------------------------
