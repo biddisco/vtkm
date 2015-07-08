@@ -20,5 +20,8 @@
 
 set(unit_tests
   UnitTestDeviceAdapterHPX.cxx
-  )
+  UnitTestHPXArrayHandle.cxx
+  UnitTestHPXArrayHandleFancy.cxx
+)
+  
 vtkm_unit_tests(HPX SOURCES ${unit_tests})

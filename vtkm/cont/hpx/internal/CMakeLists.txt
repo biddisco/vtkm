@@ -20,11 +20,8 @@
 
 set(headers
   ArrayManagerExecutionHPX.h
-#  ArrayManagerExecutionThrustDevice.h
   DeviceAdapterAlgorithmHPX.h
-#  DeviceAdapterAlgorithmThrust.h
   DeviceAdapterTagHPX.h
-#  SetThrustForHPX.h
   )
 
 vtkm_declare_headers(HPX ${headers})
