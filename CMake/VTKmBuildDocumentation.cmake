@@ -18,43 +18,36 @@
 ##  this software.
 ##============================================================================
 
-include_directories(${Boost_INCLUDE_DIRS})
+#-----------------------------------------------------------------------------
+# Find Doxygen
+#-----------------------------------------------------------------------------
+find_package(Doxygen REQUIRED)
 
-set(headers
-  CellType.h
-  Extent.h
-  ListTag.h
-  Math.h
-  Matrix.h
-  Pair.h
-  RegularConnectivity.h
-  RegularStructure.h
-  TypeListTag.h
-  Types.h
-  TypeTraits.h
-  VectorAnalysis.h
-  VecTraits.h
+#-----------------------------------------------------------------------------
+# Configure Doxygen
+#-----------------------------------------------------------------------------
+set(VTKm_DOXYGEN_HAVE_DOT ${DOXYGEN_DOT_FOUND})
+set(VTKm_DOXYGEN_DOT_PATH ${DOXYGEN_DOT_PATH})
+set(VTKm_DOXYFILE ${CMAKE_CURRENT_BINARY_DIR}/docs/doxyfile)
+set(VTKm_DOXYGEN_EXCLUDE_FILES
+  ${VTKm_SOURCE_DIR}/vtkm/testing/OptionParser.h
+)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CMake/doxyfile.in ${VTKm_DOXYFILE}
+    @ONLY)
+
+#-----------------------------------------------------------------------------
+# Run Doxygen
+#-----------------------------------------------------------------------------
+function(vtkm_build_documentation)
+  add_custom_command(
+    OUTPUT ${VTKm_BINARY_DIR}/docs/doxygen
+    COMMAND ${DOXYGEN_EXECUTABLE} ${VTKm_DOXYFILE} > /dev/null
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/CMake/doxyfile.in
+    DEPENDS ${VTKm_DOXYFILE}
+    COMMENT "Generating VTKm Documentation"
   )
-
-vtkm_pyexpander_generated_file(Math.h)
-
-vtkm_declare_headers(${headers})
-
-#-----------------------------------------------------------------------------
-#first add all the components vtkm that are shared between control and exec
-add_subdirectory(testing)
-add_subdirectory(internal)
-
-#-----------------------------------------------------------------------------
-#add the control and exec folders
-add_subdirectory(cont)
-add_subdirectory(exec)
-
-#-----------------------------------------------------------------------------
-#add the worklet folder
-add_subdirectory(worklet)
-
-#-----------------------------------------------------------------------------
-#add the benchmarking folder
-add_subdirectory(benchmarking)
-
+  add_custom_target(VTKmDoxygenDocs
+    ALL
+    DEPENDS ${VTKm_BINARY_DIR}/docs/doxygen
+  )
+endfunction(vtkm_build_documentation)

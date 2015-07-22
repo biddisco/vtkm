@@ -25,7 +25,7 @@
 #include <vtkm/cont/Storage.h>
 
 // Disable warnings we check vtkm for but Thrust does not.
-#if defined(__GNUC__) || defined(____clang__)
+#if defined(VTKM_GCC) || defined(VTKM_CLANG)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -36,7 +36,7 @@
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/copy.h>
 
-#if defined(__GNUC__) || defined(____clang__)
+#if defined(VTKM_GCC) || defined(VTKM_CLANG)
 #pragma GCC diagnostic pop
 #endif // gcc || clang
 
@@ -66,7 +66,7 @@ template<typename T>
 /// \c ArrayManagerExecutionThrustDevice provides an implementation for a \c
 /// ArrayManagerExecution class for a thrust device adapter that is designed
 /// for the cuda backend which has separate memory spaces for host and device.
-/// This implementation contains a ::thrust::system::cuda::vector to allocate
+/// This implementation contains a thrust::system::cuda::vector to allocate
 /// and manage the array.
 ///
 template<typename T, class StorageTag>

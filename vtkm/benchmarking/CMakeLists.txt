@@ -18,29 +18,18 @@
 ##  this software.
 ##============================================================================
 
-set(headers
-  Testing.h
-  TestingMath.h
-  OptionParser.h
-  VecTraitsTests.h
+set(benchmarks
+	BenchmarkDeviceAdapter.cxx
   )
 
-VTKM_declare_headers(${headers})
+vtkm_save_benchmarks(${benchmarks})
 
-set(unit_tests
-  UnitTestExtent.cxx
-  UnitTestListTag.cxx
-  UnitTestMath.cxx
-  UnitTestMatrix.cxx
-  UnitTestPair.cxx
-  UnitTestTesting.cxx
-  UnitTestTypeListTag.cxx
-  UnitTestTypes.cxx
-  UnitTestTypeTraits.cxx
-  UnitTestVectorAnalysis.cxx
-  UnitTestVecTraits.cxx
-  )
+vtkm_benchmarks(VTKM_DEVICE_ADAPTER_SERIAL)
 
-add_executable(handlecheck ArrayHandleTest.cxx)
+if (VTKm_ENABLE_CUDA)
+  vtkm_benchmarks(VTKM_DEVICE_ADAPTER_CUDA)
+endif()
+if (VTKm_ENABLE_TBB)
+  vtkm_benchmarks(VTKM_DEVICE_ADAPTER_TBB)
+endif()
 
-VTKM_unit_tests(SOURCES ${unit_tests})

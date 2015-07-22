@@ -35,12 +35,20 @@
 #include <boost/type_traits/remove_reference.hpp>
 
 // Disable warnings we check vtkm for but TBB does not.
-#if defined(__GNUC__) || defined(____clang__)
+#if defined(VTKM_GCC) || defined(VTKM_CLANG)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wconversion"
-#endif // gcc || clang
+// gcc || clang
+#elif _WIN32
+// TBB includes windows.h, which clobbers min and max functions so we
+// define NOMINMAX to fix that problem. We also include WIN32_LEAN_AND_MEAN
+// to reduce the number of macros and objects windows.h imports as those also
+// can cause conflicts
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
 
 //we provide an patched implementation of tbb parallel_sort
 //that fixes ADL for std::swap. This patch has been submitted to Intel
@@ -55,10 +63,13 @@
 #include <tbb/tick_count.h>
 
 
-#if defined(__GNUC__) || defined(____clang__)
+#if defined(VTKM_GCC) || defined(VTKM_CLANG)
 #pragma GCC diagnostic pop
-#endif // gcc || clang
-
+// gcc || clang
+#elif _WIN32
+#undef WIN32_LEAN_AND_MEAN
+#undef NOMINMAX
+#endif
 
 namespace vtkm {
 namespace cont {
@@ -72,7 +83,7 @@ struct DeviceAdapterAlgorithm<vtkm::cont::DeviceAdapterTagTBB> :
 private:
   // The "grain size" of scheduling with TBB.  Not a lot of thought has gone
   // into picking this size.
-  static const vtkm::Id TBB_GRAIN_SIZE = 128;
+  static const vtkm::Id TBB_GRAIN_SIZE = 4096;
 
   template<class InputPortalType, class OutputPortalType,
       class BinaryOperationType>
@@ -185,7 +196,9 @@ private:
     ScanInclusiveBody<InputPortalType, OutputPortalType, WrappedBinaryOp>
         body(inputPortal, outputPortal, wrappedBinaryOp);
     vtkm::Id arrayLength = inputPortal.GetNumberOfValues();
-    ::tbb::parallel_scan( ::tbb::blocked_range<vtkm::Id>(0, arrayLength), body);
+
+    ::tbb::blocked_range<vtkm::Id> range(0, arrayLength, TBB_GRAIN_SIZE);
+    ::tbb::parallel_scan( range, body );
     return body.Sum;
   }
 
@@ -303,7 +316,8 @@ private:
         body(inputPortal, outputPortal, wrappedBinaryOp, initialValue);
     vtkm::Id arrayLength = inputPortal.GetNumberOfValues();
 
-    ::tbb::parallel_scan( ::tbb::blocked_range<vtkm::Id>(0, arrayLength), body);
+    ::tbb::blocked_range<vtkm::Id> range(0, arrayLength, TBB_GRAIN_SIZE);
+    ::tbb::parallel_scan( range, body );
 
     // Seems a little weird to me that we would return the last value in the
     // array rather than the sum, but that is how the function is specified.
