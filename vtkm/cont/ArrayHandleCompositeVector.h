@@ -28,7 +28,9 @@
 
 #include <vtkm/internal/FunctionInterface.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/static_assert.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 #include <sstream>
 

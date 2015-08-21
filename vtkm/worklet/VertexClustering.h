@@ -38,7 +38,6 @@
 #include <vtkm/cont/ArrayHandleCompositeVector.h>
 
 #include <vtkm/cont/Field.h>
-#include <vtkm/cont/ExplicitConnectivity.h>
 #include <vtkm/cont/DataSet.h>
 
 #include <vtkm/worklet/AverageByKey.h>
@@ -162,7 +161,7 @@ struct VertexClustering{
     VTKM_EXEC_EXPORT
     void rotate(vtkm::Id3 &ids) const
     {
-        int temp=ids[0]; ids[0] = ids[1]; ids[1] = ids[2]; ids[2] = temp;
+        vtkm::Id temp=ids[0]; ids[0] = ids[1]; ids[1] = ids[2]; ids[2] = temp;
     }
 
   public:

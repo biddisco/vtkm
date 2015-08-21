@@ -20,13 +20,14 @@
 #ifndef vtk_m_cont_internal_DeviceAdapterAlgorithmGeneral_h
 #define vtk_m_cont_internal_DeviceAdapterAlgorithmGeneral_h
 
-#include <vtkm/TypeTraits.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayHandleCounting.h>
 #include <vtkm/cont/ArrayHandleImplicit.h>
 #include <vtkm/cont/ArrayHandleZip.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/StorageBasic.h>
+#include <vtkm/TypeTraits.h>
+#include <vtkm/UnaryPredicates.h>
 
 #include <vtkm/exec/FunctorBase.h>
 
@@ -197,9 +198,11 @@ private:
     VTKM_EXEC_EXPORT
     void operator()(vtkm::Id index) const
     {
+      typedef typename OutputPortalType::ValueType ValueType;
       this->OutputPortal.Set(
         index + this->OutputOffset,
-        this->InputPortal.Get(index + this->InputOffset));
+        static_cast<ValueType>(
+		  this->InputPortal.Get(index + this->InputOffset)));
     }
 
     VTKM_CONT_EXPORT
@@ -1187,7 +1190,7 @@ template<typename T, typename U, class CIn, class CStencil, class COut>
       const vtkm::cont::ArrayHandle<U,CStencil>& stencil,
       vtkm::cont::ArrayHandle<T,COut>& output)
   {
-    ::vtkm::not_default_constructor<U> unary_predicate;
+    ::vtkm::NotZeroInitialized unary_predicate;
     DerivedAlgorithm::StreamCompact(input, stencil, output, unary_predicate);
   }
 

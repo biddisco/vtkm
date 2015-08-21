@@ -21,19 +21,22 @@
 include_directories(${Boost_INCLUDE_DIRS})
 
 set(headers
+  BinaryPredicates.h
+  BinaryOperators.h
   CellType.h
   Extent.h
   ListTag.h
   Math.h
   Matrix.h
   Pair.h
-  RegularConnectivity.h
-  RegularStructure.h
+  TopologyElementTag.h
   TypeListTag.h
   Types.h
   TypeTraits.h
   VectorAnalysis.h
   VecTraits.h
+  VecVariable.h
+  UnaryPredicates.h
   )
 
 vtkm_pyexpander_generated_file(Math.h)

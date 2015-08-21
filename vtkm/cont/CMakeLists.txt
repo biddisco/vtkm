@@ -35,6 +35,7 @@ set(headers
   Assert.h
   CellSet.h
   CellSetExplicit.h
+  CellSetListTag.h
   CellSetStructured.h
   CoordinateSystem.h
   DataSet.h
@@ -42,8 +43,8 @@ set(headers
   DeviceAdapterAlgorithm.h
   DeviceAdapterSerial.h
   DynamicArrayHandle.h
+  DynamicCellSet.h
   DynamicPointCoordinates.h
-  ExplicitConnectivity.h
   Error.h
   ErrorControl.h
   ErrorControlAssert.h
@@ -62,7 +63,6 @@ set(headers
   StorageImplicit.h
   StorageListTag.h
   Timer.h
-  TopologyType.h
   )
 
 #-----------------------------------------------------------------------------

@@ -6,9 +6,9 @@
 //  the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
 //  PURPOSE.  See the above copyright notice for more information.
 //
-//  Copyright 2015 Sandia Corporation.
-//  Copyright 2015 UT-Battelle, LLC.
-//  Copyright 2015 Los Alamos National Security.
+//  Copyright 2014 Sandia Corporation.
+//  Copyright 2014 UT-Battelle, LLC.
+//  Copyright 2014 Los Alamos National Security.
 //
 //  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
 //  the U.S. Government retains certain rights in this software.
@@ -17,21 +17,16 @@
 //  Laboratory (LANL), the U.S. Government retains certain rights in
 //  this software.
 //============================================================================
-#ifndef vtk_m_cont_TopologyType_h
-#define vtk_m_cont_TopologyType_h
+#define BOOST_SP_DISABLE_THREADS
 
-namespace vtkm {
-namespace cont {
+#include <vtkm/cont/cuda/DeviceAdapterCuda.h>
 
-enum TopologyType
+#include <vtkm/cont/cuda/internal/testing/Testing.h>
+#include <vtkm/cont/testing/TestingComputeBounds.h>
+
+int UnitTestComputeBoundsCuda(int, char *[])
 {
-  NODE,
-  CELL,
-  EDGE,
-  FACE
-};
-
-} // namespace cont
-} // namespace vtkm
-
-#endif //vtk_m_cont_TopologyType_h
+  int result = vtkm::cont::testing::TestingComputeBounds
+      <vtkm::cont::DeviceAdapterTagCuda>::Run();
+  return vtkm::cont::cuda::internal::Testing::CheckCudaBeforeExit(result);
+}

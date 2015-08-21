@@ -27,7 +27,9 @@
 
 #include <vtkm/cont/internal/DynamicTransform.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/shared_ptr.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {

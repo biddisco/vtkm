@@ -32,16 +32,11 @@
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/type_traits/remove_reference.hpp>
 
-// Disable warnings we check vtkm for but TBB does not.
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wconversion"
 // gcc || clang
-#elif _WIN32
+#if  defined(_WIN32)
 // TBB includes windows.h, which clobbers min and max functions so we
 // define NOMINMAX to fix that problem. We also include WIN32_LEAN_AND_MEAN
 // to reduce the number of macros and objects windows.h imports as those also
@@ -50,10 +45,15 @@
 #define NOMINMAX
 #endif
 
+#include <tbb/tbb_stddef.h>
+#if (TBB_VERSION_MAJOR == 4) && (TBB_VERSION_MINOR == 2)
 //we provide an patched implementation of tbb parallel_sort
 //that fixes ADL for std::swap. This patch has been submitted to Intel
-//and should be included in future version of TBB.
+//and is fixed in TBB 4.2 update 2.
 #include <vtkm/cont/tbb/internal/parallel_sort.h>
+#else
+#include <tbb/parallel_sort.h>
+#endif
 
 #include <tbb/blocked_range.h>
 #include <tbb/blocked_range3d.h>
@@ -62,14 +62,12 @@
 #include <tbb/partitioner.h>
 #include <tbb/tick_count.h>
 
-
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
-#pragma GCC diagnostic pop
-// gcc || clang
-#elif _WIN32
+#if defined(_WIN32)
 #undef WIN32_LEAN_AND_MEAN
 #undef NOMINMAX
 #endif
+
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {
@@ -125,7 +123,7 @@ private:
 
       //use temp, and iterators instead of member variable to reduce false sharing
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->FirstCall ? *inIter++ :
                        this->BinaryOperation(this->Sum, *inIter++);
       this->FirstCall = false;
@@ -150,9 +148,9 @@ private:
 
       //use temp, and iterators instead of member variable to reduce false sharing
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       typename OutputIteratorsType::IteratorType outIter =
-        outputIterators.GetBegin() + range.begin();
+        outputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->FirstCall ? *inIter++ :
                        this->BinaryOperation(this->Sum, *inIter++);
       this->FirstCall = false;
@@ -244,7 +242,7 @@ private:
 
       //move the iterator to the first item
       typename InputIteratorsType::IteratorType iter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->Sum;
       for (vtkm::Id index = range.begin(); index != range.end(); ++index, ++iter)
         {
@@ -266,9 +264,9 @@ private:
 
       //move the iterators to the first item
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       typename OutputIteratorsType::IteratorType outIter =
-        outputIterators.GetBegin() + range.begin();
+        outputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->Sum;
       for (vtkm::Id index = range.begin(); index != range.end();
            ++index, ++inIter, ++outIter)

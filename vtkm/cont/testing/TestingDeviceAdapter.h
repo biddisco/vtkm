@@ -21,6 +21,7 @@
 #define vtk_m_cont_testing_TestingDeviceAdapter_h
 
 #include <vtkm/TypeTraits.h>
+#include <vtkm/BinaryPredicates.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayHandleCounting.h>
 #include <vtkm/cont/ArrayHandleConstant.h>
@@ -55,50 +56,6 @@ namespace cont {
 namespace testing {
 
 namespace comparison {
-struct SortLess
-{
-  template<typename T>
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T& a, const T& b) const
-  {
-    return a < b;
-  }
-
-  template<typename T, int N>
-  VTKM_EXEC_EXPORT bool operator()(const vtkm::Vec<T,N>& a,
-                                   const vtkm::Vec<T,N>& b) const
-  {
-    const vtkm::IdComponent SIZE = vtkm::VecTraits<T>::NUM_COMPONENTS;
-    bool valid = true;
-    for(vtkm::IdComponent i=0; (i < SIZE) && valid; ++i)
-    {
-      valid = a[i] < b[i];
-    }
-    return valid;
-  }
-};
-
-struct SortGreater
-{
-  template<typename T>
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T& a, const T& b) const
-  {
-    return a > b;
-  }
-
-  template<typename T, int N>
-  VTKM_EXEC_EXPORT bool operator()(const vtkm::Vec<T,N>& a,
-                                   const vtkm::Vec<T,N>& b) const
-  {
-    const vtkm::IdComponent SIZE = vtkm::VecTraits<T>::NUM_COMPONENTS;
-    bool valid = true;
-    for(vtkm::IdComponent i=0; (i < SIZE) && valid; ++i)
-    {
-      valid = a[i] > b[i];
-    }
-    return valid;
-  }
-};
-
 struct MaxValue
 {
   template<typename T>
@@ -384,13 +341,14 @@ private:
     try
     {
       std::cout << "Do array allocation that should fail." << std::endl;
-      vtkm::cont::internal::ArrayManagerExecution<
-          vtkm::Vector4,StorageTagBasic,DeviceAdapterTag>
-          bigManager;
       vtkm::cont::internal::Storage<
-          vtkm::Vector4, StorageTagBasic> supportArray;
+          vtkm::Vec<vtkm::Float32, 4>, StorageTagBasic> supportArray;
+      vtkm::cont::internal::ArrayManagerExecution<
+          vtkm::Vec<vtkm::Float32, 4>, StorageTagBasic, DeviceAdapterTag>
+          bigManager(&supportArray);
+
       const vtkm::Id bigSize = 0x7FFFFFFFFFFFFFFFLL;
-      bigManager.AllocateArrayForOutput(supportArray, bigSize);
+      bigManager.PrepareForOutput(bigSize);
       // It does not seem reasonable to get here.  The previous call should fail.
       VTKM_TEST_FAIL("A ridiculously sized allocation succeeded.  Either there "
                      "was a failure that was not reported but should have been "
@@ -402,7 +360,7 @@ private:
       std::cout << "Got the expected error: " << error.GetMessage() << std::endl;
     }
 #else
-    std::cout << "--------- Skiping out of memory test" << std::endl;
+    std::cout << "--------- Skipping out of memory test" << std::endl;
 #endif
   }
 
@@ -477,6 +435,37 @@ private:
       manager.RetrieveOutputData(&storage);
 
       for (vtkm::Id index = 0; index < ARRAY_SIZE; index++)
+      {
+        vtkm::Id value = storage.GetPortalConst().Get(index);
+        VTKM_TEST_ASSERT(value == index + OFFSET,
+                         "Got bad value for scheduled kernels.");
+      }
+    } //release memory
+
+    std::cout << "-------------------------------------------" << std::endl;
+    std::cout << "Testing Schedule with a vary large Id value" << std::endl;
+
+    {
+      std::cout << "Allocating execution array" << std::endl;
+      IdStorage storage;
+      IdArrayManagerExecution manager(&storage);
+
+      std::cout << "Running clear." << std::endl;
+
+      //size is selected to be larger than the CUDA backend can launch in a
+      //single invocation when compiled for SM_2 support
+      const vtkm::Id size = 8400000;
+      Algorithm::Schedule(ClearArrayKernel(manager.PrepareForOutput(size)),
+                          size);
+
+      std::cout << "Running add." << std::endl;
+      Algorithm::Schedule(AddArrayKernel(manager.PrepareForInPlace(false)),
+                          size);
+
+      std::cout << "Checking results." << std::endl;
+      manager.RetrieveOutputData(&storage);
+
+      for (vtkm::Id index = 0; index < size; index++)
       {
         vtkm::Id value = storage.GetPortalConst().Get(index);
         VTKM_TEST_ASSERT(value == index + OFFSET,
@@ -721,7 +710,7 @@ private:
     //we would also sort the 'sorted' handle
     IdArrayHandle comp_sorted;
     Algorithm::Copy(sorted, comp_sorted);
-    Algorithm::Sort(comp_sorted,comparison::SortGreater());
+    Algorithm::Sort(comp_sorted,vtkm::SortGreater());
 
     //Validate that sorted and comp_sorted are sorted in the opposite directions
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
@@ -733,13 +722,13 @@ private:
     }
 
     //validate that sorted and comp_sorted are now equal
-    Algorithm::Sort(comp_sorted,comparison::SortLess());
+    Algorithm::Sort(comp_sorted,vtkm::SortLess());
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
     {
       vtkm::Id sorted1 = sorted.GetPortalConstControl().Get(i);
       vtkm::Id sorted2 = comp_sorted.GetPortalConstControl().Get(i);
       VTKM_TEST_ASSERT(sorted1 == sorted2,
-                       "Got bad sort values when using SortLesser");
+                       "Got bad sort values when using SortLess");
     }
   }
 
@@ -762,7 +751,7 @@ private:
     vtkm::cont::ArrayHandleZip< IdArrayHandle, IdArrayHandle> zipped(unsorted, sorted);
 
     //verify we can use sort with zip handle
-    Algorithm::Sort(zipped, comparison::SortGreater());
+    Algorithm::Sort(zipped, vtkm::SortGreater());
     Algorithm::Sort(zipped);
 
     for (vtkm::Id i = 0; i < ARRAY_SIZE; ++i)
@@ -781,7 +770,7 @@ private:
                                         IdArrayHandle> perm(index, sorted);
 
     //verify we can use a custom operator sort with permutation handle
-    Algorithm::Sort(perm, comparison::SortGreater());
+    Algorithm::Sort(perm, vtkm::SortGreater());
     for (vtkm::Id i = 0; i < ARRAY_SIZE; ++i)
     {
       vtkm::Id sorted_value = perm.GetPortalConstControl().Get(i);
@@ -836,7 +825,7 @@ private:
       }
 
     // this will return everything back to what it was before sorting
-    Algorithm::SortByKey(keys,values,comparison::SortGreater());
+    Algorithm::SortByKey(keys,values,vtkm::SortGreater());
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
       {
       //keys should be sorted from ARRAY_SIZE to 1
@@ -886,7 +875,7 @@ private:
 
     IdArrayHandle handle;
     //verify lower bounds work
-    Algorithm::LowerBounds(temp,input,handle,comparison::SortLess());
+    Algorithm::LowerBounds(temp,input,handle,vtkm::SortLess());
 
     // Check to make sure that temp was resized correctly during Unique.
     // (This was a discovered bug at one point.)
@@ -924,7 +913,7 @@ private:
 
     IdArrayHandle handle;
     //verify upper bounds work
-    Algorithm::UpperBounds(temp,input,handle,comparison::SortLess());
+    Algorithm::UpperBounds(temp,input,handle,vtkm::SortLess());
 
     // Check to make sure that temp was resized correctly during Unique.
     // (This was a discovered bug at one point.)

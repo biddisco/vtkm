@@ -25,20 +25,11 @@
 #include <vtkm/internal/ExportMacros.h>
 
 // Disable warnings we check vtkm for but Thrust does not.
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif // gcc || clang
-
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <thrust/functional.h>
 #include <thrust/iterator/iterator_facade.h>
 #include <thrust/system/cuda/execution_policy.h>
-
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
-#pragma GCC diagnostic pop
-#endif // gcc || clang
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace exec {
@@ -98,7 +89,7 @@ class IteratorFromArrayPortal : public
       ::thrust::system::cuda::tag,
       ::thrust::random_access_traversal_tag,
       PortalValue<ArrayPortalType>,
-      vtkm::Id>
+      std::ptrdiff_t>
 {
 public:
 
@@ -156,20 +147,20 @@ private:
   }
 
   VTKM_EXEC_CONT_EXPORT
-  void advance(vtkm::Id delta)
+  void advance(std::ptrdiff_t delta)
   {
-    this->Index += delta;
+    this->Index += static_cast<vtkm::Id>(delta);
   }
 
   VTKM_EXEC_CONT_EXPORT
-  vtkm::Id
+  std::ptrdiff_t
   distance_to(const IteratorFromArrayPortal<ArrayPortalType> &other) const
   {
     // Technically, we should probably check that the portals are the same,
     // but the portal interface does not specify an equal operator.  It is
     // by its nature undefined what happens when comparing iterators from
     // different portals anyway.
-    return other.Index - this->Index;
+    return static_cast<std::ptrdiff_t>(other.Index - this->Index);
   }
 };
 

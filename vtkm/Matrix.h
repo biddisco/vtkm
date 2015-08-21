@@ -161,13 +161,13 @@ vtkm::Matrix<T,NumRow,NumCol> MatrixMultiply(
   {
     for (vtkm::IdComponent colIndex = 0; colIndex < NumCol; colIndex++)
     {
-      T sum = leftFactor(rowIndex, 0) * rightFactor(0, colIndex);
+      T sum = T(leftFactor(rowIndex, 0) * rightFactor(0, colIndex));
       for (vtkm::IdComponent internalIndex = 1;
            internalIndex < NumInternal;
            internalIndex++)
       {
-        sum += leftFactor(rowIndex, internalIndex)
-            * rightFactor(internalIndex, colIndex);
+        sum = T(sum + (leftFactor(rowIndex, internalIndex)
+                       * rightFactor(internalIndex, colIndex)));
       }
       result(rowIndex, colIndex) = sum;
     }
@@ -557,6 +557,12 @@ public:
   typedef T ComponentType;
   static const vtkm::IdComponent NUM_COMPONENTS = NumRow*NumCol;
   typedef vtkm::VecTraitsTagMultipleComponents HasMultipleComponents;
+  typedef vtkm::VecTraitsTagSizeStatic IsSizeStatic;
+
+  VTKM_EXEC_CONT_EXPORT
+  static vtkm::IdComponent GetNumberOfComponents(const MatrixType &) {
+    return NUM_COMPONENTS;
+  }
 
   VTKM_EXEC_CONT_EXPORT
   static const ComponentType &GetComponent(const MatrixType &matrix,

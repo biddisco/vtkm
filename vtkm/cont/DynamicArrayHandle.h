@@ -29,8 +29,10 @@
 
 #include <vtkm/cont/internal/DynamicTransform.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/smart_ptr/shared_ptr.hpp>
 #include <boost/utility/enable_if.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {
@@ -141,7 +143,7 @@ public:
   template<typename Type, typename Storage>
   VTKM_CONT_EXPORT
   DynamicArrayHandle(const vtkm::cont::ArrayHandle<Type,Storage> &array)
-    : ArrayStorage(new vtkm::cont::detail::PolymorphicArrayHandleContainer<
+    : ArrayContainer(new vtkm::cont::detail::PolymorphicArrayHandleContainer<
                      Type,Storage>(array))
   {  }
 
@@ -149,7 +151,7 @@ public:
   VTKM_CONT_EXPORT
   DynamicArrayHandle(
       const internal::DynamicArrayHandleCast<TypeList,StorageList> &dynamicArray)
-    : ArrayStorage(dynamicArray.ArrayStorage) {  }
+    : ArrayContainer(dynamicArray.ArrayContainer) {  }
 
   /// Returns true if this array is of the provided type and uses the provided
   /// storage.
@@ -157,7 +159,7 @@ public:
   template<typename Type, typename Storage>
   VTKM_CONT_EXPORT
   bool IsTypeAndStorage(Type = Type(), Storage = Storage()) const {
-    return (this->TryCastStorage<Type,Storage>() != NULL);
+    return (this->TryCastContainer<Type,Storage>() != NULL);
   }
 
   /// Returns this array cast to an ArrayHandle object of the given type and
@@ -169,7 +171,7 @@ public:
   vtkm::cont::ArrayHandle<Type, Storage>
   CastToArrayHandle(Type = Type(), Storage = Storage()) const {
     vtkm::cont::detail::PolymorphicArrayHandleContainer<Type,Storage> *container
-        = this->TryCastStorage<Type,Storage>();
+        = this->TryCastContainer<Type,Storage>();
     if (container == NULL)
     {
       throw vtkm::cont::ErrorControlBadValue("Bad cast of dynamic array.");
@@ -241,7 +243,7 @@ public:
   DynamicArrayHandle NewInstance() const
   {
     DynamicArrayHandle newArray;
-    newArray.ArrayStorage = this->ArrayStorage->NewInstance();
+    newArray.ArrayContainer = this->ArrayContainer->NewInstance();
     return newArray;
   }
 
@@ -254,7 +256,7 @@ public:
   VTKM_CONT_EXPORT
   vtkm::IdComponent GetNumberOfComponents() const
   {
-    return this->ArrayStorage->GetNumberOfComponents();
+    return this->ArrayContainer->GetNumberOfComponents();
   }
 
   /// \brief Get the number of values in the array.
@@ -262,21 +264,21 @@ public:
   VTKM_CONT_EXPORT
   vtkm::Id GetNumberOfValues() const
   {
-    return this->ArrayStorage->GetNumberOfValues();
+    return this->ArrayContainer->GetNumberOfValues();
   }
 
 private:
   boost::shared_ptr<vtkm::cont::detail::PolymorphicArrayHandleContainerBase>
-    ArrayStorage;
+    ArrayContainer;
 
   template<typename Type, typename Storage>
   VTKM_CONT_EXPORT
   vtkm::cont::detail::PolymorphicArrayHandleContainer<Type,Storage> *
-  TryCastStorage() const {
+  TryCastContainer() const {
     return
         dynamic_cast<
           vtkm::cont::detail::PolymorphicArrayHandleContainer<Type,Storage> *>(
-            this->ArrayStorage.get());
+            this->ArrayContainer.get());
   }
 };
 
