@@ -1104,12 +1104,27 @@ private:
     IdArrayHandle keys = vtkm::cont::make_ArrayHandle(inputKeys, inputLength);
     IdArrayHandle values = vtkm::cont::make_ArrayHandle(inputValues, inputLength);
 
+    for (int i=0; i<keys.GetNumberOfValues(); i++) {
+          const vtkm::Id k = keys.GetPortalConstControl().Get(i);
+          const vtkm::Id v = values.GetPortalConstControl().Get(i);
+          std::cout << i << " : " << k << std::endl;
+          std::cout << i << " : " << v << std::endl;
+    }
+
     IdArrayHandle keysOut, valuesOut;
     Algorithm::ReduceByKey( keys,
                             values,
                             keysOut,
                             valuesOut,
                             vtkm::internal::Add() );
+
+    std::cout << "Printing out the values and keys " << keysOut.GetNumberOfValues() << " " << expectedLength << std::endl;
+    for (int i=0; i<keysOut.GetNumberOfValues(); i++) {
+          const vtkm::Id k = keysOut.GetPortalConstControl().Get(i);
+          const vtkm::Id v = valuesOut.GetPortalConstControl().Get(i);
+          std::cout << i << " : " << k << " expected key   " << expectedKeys[i] << std::endl;
+          std::cout << i << " : " << v << " expected value " << expectedValues[i] << std::endl;
+    }
 
     VTKM_TEST_ASSERT(keysOut.GetNumberOfValues() == expectedLength,
                     "Got wrong number of output keys");

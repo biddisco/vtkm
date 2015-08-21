@@ -36,7 +36,6 @@
 #include <boost/iterator/counting_iterator.hpp>
 #include <boost/utility/enable_if.hpp>
 
-
 #include <algorithm>
 #include <numeric>
 
@@ -211,6 +210,217 @@ public:
     return result;
   }
 
+  //----------------------------------------------------------------------------
+  // helper for ReduceByKey
+  struct ReduceKeySeriesStates
+  {
+    bool fStart;    // START of a segment
+    bool fEnd;      // END of a segment
+    ReduceKeySeriesStates(bool start=false, bool end=false) : fStart(start), fEnd(end) {}
+  };
+
+  //----------------------------------------------------------------------------
+  // helper for ReduceByKey
+  template<typename InputPortalType>
+  struct ReduceStencilGeneration : vtkm::exec::FunctorBase
+  {
+    typedef typename vtkm::cont::ArrayHandle< ReduceKeySeriesStates >::template ExecutionTypes<DeviceAdapterTagHPX>
+    ::Portal KeyStatePortalType;
+
+    InputPortalType Input;
+    KeyStatePortalType KeyState;
+
+    VTKM_CONT_EXPORT
+    ReduceStencilGeneration(const InputPortalType &input,
+                            const KeyStatePortalType &kstate)
+    : Input(input),
+    KeyState(kstate)
+    {  }
+
+    VTKM_EXEC_EXPORT
+    void operator()(vtkm::Id centerIndex) const
+    {
+      typedef typename InputPortalType::ValueType ValueType;
+      typedef typename KeyStatePortalType::ValueType KeyStateType;
+
+      const vtkm::Id leftIndex = centerIndex - 1;
+      const vtkm::Id rightIndex = centerIndex + 1;
+
+      //we need to determine which of three states this
+      //index is. It can be:
+      // 1. Middle of a set of equivalent keys.
+      // 2. Start of a set of equivalent keys.
+      // 3. End of a set of equivalent keys.
+      // 4. Both the start and end of a set of keys
+
+      //we don't have to worry about an array of length 1, as
+      //the calling code handles that use case
+
+      if(centerIndex == 0)
+      {
+        //this means we are at the start of the array
+        //means we are automatically START
+        //just need to check if we are END
+        const ValueType centerValue = this->Input.Get(centerIndex);
+        const ValueType rightValue = this->Input.Get(rightIndex);
+        const KeyStateType state = ReduceKeySeriesStates(true, rightValue != centerValue);
+        this->KeyState.Set(centerIndex, state);
+        std::cout << " Set state # " << true << (rightValue != centerValue) << std::endl;
+      }
+      else if(rightIndex == this->Input.GetNumberOfValues())
+      {
+        //this means we are at the end, so we are at least END
+        //just need to check if we are START
+        const ValueType centerValue = this->Input.Get(centerIndex);
+        const ValueType leftValue = this->Input.Get(leftIndex);
+        const KeyStateType state = ReduceKeySeriesStates(leftValue != centerValue, true);
+        this->KeyState.Set(centerIndex, state);
+        std::cout << " Set state # " << (leftValue != centerValue) << true << std::endl;
+      }
+      else
+      {
+        const ValueType centerValue = this->Input.Get(centerIndex);
+        const bool leftMatches(this->Input.Get(leftIndex) == centerValue);
+        const bool rightMatches(this->Input.Get(rightIndex) == centerValue);
+
+        //assume it is the middle, and check for the other use-case
+        KeyStateType state = ReduceKeySeriesStates(!leftMatches, !rightMatches);
+        this->KeyState.Set(centerIndex, state);
+        std::cout << " Set state # " << !leftMatches << !rightMatches << std::endl;
+      }
+    }
+  };
+
+  //----------------------------------------------------------------------------
+  // helper for ReduceByKey
+  template<typename BinaryFunctor>
+  struct ReduceByKeyAdd
+  {
+    BinaryFunctor BinaryOperator;
+
+    ReduceByKeyAdd(BinaryFunctor binary_functor):
+    BinaryOperator( binary_functor )
+    { }
+
+    template<typename T>
+    vtkm::Pair<T, ReduceKeySeriesStates> operator()(const vtkm::Pair<T, ReduceKeySeriesStates>& a,
+                                                    const vtkm::Pair<T, ReduceKeySeriesStates>& b) const
+    {
+      typedef vtkm::Pair<T, ReduceKeySeriesStates> ReturnType;
+      //need too handle how we are going to add two numbers together
+      //based on the keyStates that they have
+
+      // Make it work for parallel inclusive scan.  Will end up with all start bits = 1
+      // the following logic should change if you use a different parallel scan algorithm.
+      if (!b.second.fStart) {
+        std::cout << "not second " << std::endl;
+        // if b is not START, then it's safe to sum a & b.
+        // Propagate a's start flag to b
+        // so that later when b's START bit is set, it means there must exists a START between a and b
+        return ReturnType(this->BinaryOperator(a.first , b.first),
+                          ReduceKeySeriesStates(a.second.fStart, b.second.fEnd));
+      }
+      std::cout << "second " << std::endl;
+      return b;
+    }
+
+  };
+
+  //----------------------------------------------------------------------------
+  // helper for ReduceByKey
+  struct ReduceByKeyUnaryStencilOp
+  {
+    bool operator()(ReduceKeySeriesStates keySeriesState) const
+    {
+      return keySeriesState.fEnd;
+    }
+    
+  };
+
+  //----------------------------------------------------------------------------
+  template<typename T, typename U, class KIn, class VIn, class KOut, class VOut,
+  class BinaryFunctor>
+  VTKM_CONT_EXPORT static void ReduceByKey(
+                                           const vtkm::cont::ArrayHandle<T,KIn> &keys,
+                                           const vtkm::cont::ArrayHandle<U,VIn> &values,
+                                           vtkm::cont::ArrayHandle<T,KOut> &keys_output,
+                                           vtkm::cont::ArrayHandle<U,VOut> &values_output,
+                                           BinaryFunctor binary_functor)
+  {
+    VTKM_ASSERT_CONT(keys.GetNumberOfValues() == values.GetNumberOfValues());
+    const vtkm::Id numberOfKeys = keys.GetNumberOfValues();
+    std::cout << "Using custom reduce by key algorithm " << std::endl;
+
+    if(numberOfKeys <= 1)
+    { //we only have a single key/value so that is our output
+      Copy(keys, keys_output);
+      Copy(values, values_output);
+      return;
+    }
+
+    //we need to determine based on the keys what is the keystate for
+    //each key. The states are start, middle, end of a series and the special
+    //state start and end of a series
+    vtkm::cont::ArrayHandle< ReduceKeySeriesStates > keystate;
+    {
+      typedef typename vtkm::cont::ArrayHandle<T,KIn>::template ExecutionTypes<DeviceAdapterTagHPX>
+      ::PortalConst InputPortalType;
+
+      typedef typename vtkm::cont::ArrayHandle< ReduceKeySeriesStates >::template ExecutionTypes<DeviceAdapterTagHPX>
+      ::Portal KeyStatePortalType;
+
+      InputPortalType inputPortal = keys.PrepareForInput(DeviceAdapterTagHPX());
+      KeyStatePortalType keyStatePortal = keystate.PrepareForOutput(numberOfKeys,
+                                                                    DeviceAdapterTagHPX());
+      ReduceStencilGeneration<InputPortalType> kernel(inputPortal, keyStatePortal);
+      Schedule(kernel, numberOfKeys);
+    }
+
+    //next step is we need to reduce the values for each key. This is done
+    //by running an inclusive scan over the values array using the stencil.
+    //
+    // this inclusive scan will write out two values, the first being
+    // the value summed currently, the second being 0 or 1, with 1 being used
+    // when this is a value of a key we need to write ( END or START_AND_END)
+    {
+      typedef vtkm::cont::ArrayHandle<U,VIn> ValueInHandleType;
+      typedef vtkm::cont::ArrayHandle<U,VOut> ValueOutHandleType;
+      typedef vtkm::cont::ArrayHandle< ReduceKeySeriesStates> StencilHandleType;
+      typedef vtkm::cont::ArrayHandleZip<ValueInHandleType,
+      StencilHandleType> ZipInHandleType;
+      typedef vtkm::cont::ArrayHandleZip<ValueOutHandleType,
+      StencilHandleType> ZipOutHandleType;
+
+      StencilHandleType stencil;
+      ValueOutHandleType reducedValues;
+
+      ZipInHandleType scanInput( values, keystate);
+      ZipOutHandleType scanOutput( reducedValues, stencil);
+
+      ScanInclusive(scanInput,
+                    scanOutput,
+                    ReduceByKeyAdd<BinaryFunctor>(binary_functor) );
+
+      //at this point we are done with keystate, so free the memory
+      keystate.ReleaseResources();
+
+      // all we need know is an efficient way of doing the write back to the
+      // reduced global memory. this is done by using StreamCompact with the
+      // stencil and values we just created with the inclusive scan
+      StreamCompact( reducedValues,
+                                      stencil,
+                                      values_output,
+                                      ReduceByKeyUnaryStencilOp());
+      
+    } //release all temporary memory
+    
+    
+    //find all the unique keys
+    Copy(keys,keys_output);
+    Unique(keys_output);
+  }
+  
+
 private:
   //----------------------------------------------------------------------------
   // This runs in the execution environment.
@@ -275,6 +485,7 @@ public:
     typedef typename vtkm::cont::ArrayHandle<T,Storage>
         ::template ExecutionTypes<Device>::Portal PortalType;
 
+    std::cout << "Entering Sort algorithm" << std::endl;
     PortalType arrayPortal = values.PrepareForInPlace(Device());
     vtkm::cont::ArrayPortalToIterators<PortalType> iterators(arrayPortal);
     std::sort(iterators.GetBegin(), iterators.GetEnd());
@@ -287,7 +498,7 @@ public:
   {
     typedef typename vtkm::cont::ArrayHandle<T,Storage>
         ::template ExecutionTypes<Device>::Portal PortalType;
-
+std::cout << "Entering Sort algorithm (functor)" << std::endl;
     internal::WrappedBinaryOperator<bool, BinaryFunctor> wrappedOp( binary_functor );
 
     PortalType arrayPortal = values.PrepareForInPlace(Device());
