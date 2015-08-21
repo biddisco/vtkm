@@ -98,13 +98,6 @@ public:
     PortalKIn keysPortalIn = keys.PrepareForInput(Device());
     PortalVIn valuesPortalIn = values.PrepareForInput(Device());
 
-    for (int i=0; i<keys.GetNumberOfValues(); i++) {
-//          const vtkm::Id k = keys.GetPortalConstControl().Get(i);
-//          const vtkm::Id v = values.GetPortalConstControl().Get(i);
-//          std::cout << i << " @ : " << k << std::endl;
-//          std::cout << i << " @ : " << v << std::endl;
-    }
-
     const vtkm::Id numberOfKeys = keys.GetNumberOfValues();
     PortalKOut keysPortalOut = keys_output.PrepareForOutput(numberOfKeys, Device());
     PortalVOut valuesPortalOut = values_output.PrepareForOutput(numberOfKeys, Device());

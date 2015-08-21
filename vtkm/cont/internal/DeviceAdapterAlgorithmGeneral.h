@@ -545,7 +545,6 @@ private:
         const ValueType rightValue = this->Input.Get(rightIndex);
         const KeyStateType state = ReduceKeySeriesStates(true, rightValue != centerValue);
         this->KeyState.Set(centerIndex, state);
-        std::cout << " Set state " << true << (rightValue != centerValue) << std::endl;
         }
       else if(rightIndex == this->Input.GetNumberOfValues())
         {
@@ -555,7 +554,6 @@ private:
         const ValueType leftValue = this->Input.Get(leftIndex);
         const KeyStateType state = ReduceKeySeriesStates(leftValue != centerValue, true);
         this->KeyState.Set(centerIndex, state);
-        std::cout << " Set state " << (leftValue != centerValue) << true << std::endl;
         }
       else
         {
@@ -566,7 +564,6 @@ private:
         //assume it is the middle, and check for the other use-case
         KeyStateType state = ReduceKeySeriesStates(!leftMatches, !rightMatches);
         this->KeyState.Set(centerIndex, state);
-        std::cout << " Set state " << !leftMatches << !rightMatches << std::endl;
         }
     }
   };
@@ -591,14 +588,12 @@ private:
     // Make it work for parallel inclusive scan.  Will end up with all start bits = 1
     // the following logic should change if you use a different parallel scan algorithm.
     if (!b.second.fStart) {
-      std::cout << "not second " << std::endl;
         // if b is not START, then it's safe to sum a & b.
         // Propagate a's start flag to b
         // so that later when b's START bit is set, it means there must exists a START between a and b
         return ReturnType(this->BinaryOperator(a.first , b.first),
                           ReduceKeySeriesStates(a.second.fStart, b.second.fEnd));
     }
-      std::cout << "second " << std::endl;
     return b;
     }
 
