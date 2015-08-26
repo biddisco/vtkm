@@ -66,7 +66,7 @@ vtkm::cont::DataSet RunVertexClustering(vtkm::cont::DataSet &dataSet,
 
   vtkm::cont::ArrayHandle<PointType> output_pointArray ;
   vtkm::cont::ArrayHandle<vtkm::Id3> output_pointId3Array ;
-
+/*
   // run
   vtkm::worklet::VertexClustering<VTKM_DEFAULT_DEVICE_ADAPTER_TAG>().run(
         pointArray,
@@ -76,9 +76,9 @@ vtkm::cont::DataSet RunVertexClustering(vtkm::cont::DataSet &dataSet,
         nDivisions,
         output_pointArray,
         output_pointId3Array);
-
+*/
   vtkm::cont::DataSet newDataSet;
-
+/*
   newDataSet.AddField(vtkm::cont::Field("xyz", 0, vtkm::cont::Field::ASSOC_POINTS, output_pointArray));
   newDataSet.AddCoordinateSystem(vtkm::cont::CoordinateSystem("xyz"));
 
@@ -98,7 +98,7 @@ vtkm::cont::DataSet RunVertexClustering(vtkm::cont::DataSet &dataSet,
 
     newDataSet.AddCellSet(newCellSet);
   }
-
+*/
   return newDataSet;
 }
 
