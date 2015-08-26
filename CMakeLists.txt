@@ -37,6 +37,31 @@ include(CMake/VTKmMacros.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${VTKm_SOURCE_DIR}/CMake)
 
+#--------------------------------------------------
+# Find HPX
+#--------------------------------------------------
+option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
+if(VTKm_ENABLE_HPX)
+  find_package(HPX REQUIRED)
+  #-------------
+  # Find Boost, just to make sure
+  #-------------
+  set(Boost_ADDITIONAL_VERSIONS
+      ${Boost_ADDITIONAL_VERSIONS}
+      "1.59.0" "1.59"
+      "1.58.0" "1.58"
+      "1.57.0" "1.57")
+message("Here in the findy findy boost region")
+  find_package(Boost
+    1.55
+    REQUIRED
+    COMPONENTS
+      thread system date_time chrono serialization atomic 
+    )
+    set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
+    include_directories(${HPX_INCLUDE_DIRS})
+endif()
+
 #-----------------------------------------------------------------------------
 # List of Boost features used:
 # * Smart Ptr
@@ -80,24 +105,6 @@ option(VTKm_USE_64BIT_IDS "Use 64-bit indices." ON)
 if (VTKm_ENABLE_TESTING)
   enable_testing()
   include(CTest)
-endif()
-
-#--------------------------------------------------
-# Find HPX
-#--------------------------------------------------
-option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
-if(VTKm_ENABLE_HPX)
-  find_package(HPX REQUIRED)
-  #-------------
-  # Find Boost, just to make sure
-  #-------------
-  find_package(Boost 1.49
-    COMPONENTS 
-      thread system date_time chrono serialization atomic 
-    REQUIRED
-  )
-  set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
-  include_directories(${HPX_INCLUDE_DIRS})
 endif()
 
 #-----------------------------------------------------------------------------
