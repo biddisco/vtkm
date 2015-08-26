@@ -37,15 +37,40 @@ include(CMake/VTKmMacros.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${VTKm_SOURCE_DIR}/CMake)
 
-#-----------------------------------------------------------------------------
-# List of Boost features used:
-# * Smart Ptr
-# * Meta programming language
-# We check for boost first, as the device configuration code requires boost
-# to be found
-find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
-if(NOT Boost_FOUND)
-  message(FATAL_ERROR "Please specify where to find boost headers (${VTKm_REQUIRED_BOOST_VERSION}+)" )
+#--------------------------------------------------
+# Find HPX
+#--------------------------------------------------
+option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
+if(VTKm_ENABLE_HPX)
+  find_package(HPX REQUIRED)
+  message("HPX_FOUND is ${HPX_FOUND} in ${HPX_DIR}")
+  #-------------
+  # Find Boost, just to make sure
+  #-------------
+  set(Boost_ADDITIONAL_VERSIONS
+      ${Boost_ADDITIONAL_VERSIONS}
+      "1.59.0" "1.59"
+      "1.58.0" "1.58"
+      "1.57.0" "1.57")
+  find_package(Boost
+    1.55
+    REQUIRED
+    COMPONENTS
+      atomic chrono date_time filesystem program_options regex system thread 
+    )
+    set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
+    include_directories(${HPX_INCLUDE_DIRS})
+else()
+  #-----------------------------------------------------------------------------
+  # List of Boost features used:
+  # * Smart Ptr
+  # * Meta programming language
+  # We check for boost first, as the device configuration code requires boost
+  # to be found
+  find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
+  if(NOT Boost_FOUND)
+    message(FATAL_ERROR "Please specify where to find boost headers (${VTKm_REQUIRED_BOOST_VERSION}+)" )
+  endif()
 endif()
 
 #-----------------------------------------------------------------------------
@@ -80,24 +105,6 @@ option(VTKm_USE_64BIT_IDS "Use 64-bit indices." ON)
 if (VTKm_ENABLE_TESTING)
   enable_testing()
   include(CTest)
-endif()
-
-#--------------------------------------------------
-# Find HPX
-#--------------------------------------------------
-option(VTKm_ENABLE_HPX "Turn on support for HPX parallel threading." OFF)
-if(VTKm_ENABLE_HPX)
-  find_package(HPX REQUIRED)
-  #-------------
-  # Find Boost, just to make sure
-  #-------------
-  find_package(Boost 1.49
-    COMPONENTS 
-      thread system date_time chrono serialization atomic 
-    REQUIRED
-  )
-  set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
-  include_directories(${HPX_INCLUDE_DIRS})
 endif()
 
 #-----------------------------------------------------------------------------
