@@ -30,6 +30,7 @@
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
+#include <vtkm/cont/testing/TestingDeviceAdapter.h>
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 
@@ -43,6 +44,40 @@
 
 namespace vtkm {
 namespace cont {
+
+    template <typename Op>
+    struct initial_value
+    {
+        template <typename T>
+        constexpr static T call() { return T(); }
+    };
+    
+    template <typename T>
+    struct initial_value<std::plus<T>>
+    {
+        constexpr static T call() { return T(); }
+    };
+    
+    template <typename T>
+    struct initial_value<std::multiplies<T>>
+    {
+        constexpr static T call() { return T(1); }
+    };
+    
+    
+    template <>
+    struct initial_value<vtkm::internal::Multiply>
+    {
+        constexpr static double call() { return 1.0; }
+    };
+    
+    template <>
+    struct initial_value<vtkm::cont::testing::comparison::MaxValue>
+    {
+        typedef vtkm::cont::testing::comparison::MaxValue::result_type result_type;
+        constexpr static result_type call() { return result_type(0); }
+    };
+    
 
 template<>
 struct DeviceAdapterAlgorithm<vtkm::cont::DeviceAdapterTagHPX> :
@@ -100,6 +135,56 @@ public:
     return result;
   }
 
+/*
+    //----------------------------------------------------------------------------
+    template<typename T, class CIn, class COut>
+    VTKM_CONT_EXPORT static T ScanInclusive(
+                                            const vtkm::cont::ArrayHandle<T,CIn> &input,
+                                            vtkm::cont::ArrayHandle<T,COut> &output,
+                                            vtkm::internal::Multiply binary_functor)
+    {
+        typedef typename vtkm::cont::ArrayHandle<T,COut>
+        ::template ExecutionTypes<Device>::Portal PortalOut;
+        typedef typename vtkm::cont::ArrayHandle<T,CIn>
+        ::template ExecutionTypes<Device>::PortalConst PortalIn;
+        
+        std::cout << "Here in the multiply version " << std::endl;
+        vtkm::Id numberOfValues = input.GetNumberOfValues();
+        
+        PortalIn inputPortal = input.PrepareForInput(Device());
+        PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
+        
+        T result = T();
+        if (numberOfValues <= 0) { return result; }
+        
+        
+        std::cout << "\nInput values " ;
+        std::copy(
+                  vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
+                  vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+                  std::ostream_iterator<T>(std::cout, ", ")
+                  );
+        
+        internal::WrappedBinaryOperator<T, vtkm::internal::Multiply> wrappedOp( binary_functor );
+        hpx::parallel::inclusive_scan(hpx::parallel::par,
+                                      vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+                                      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+                                      vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
+                                      T(1),
+                                      wrappedOp);
+        
+        std::cout << "\nOutput values " ;
+        std::copy(
+                  vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
+                  vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
+                  std::ostream_iterator<T>(std::cout, ", ")
+                  );
+        
+        result =  outputPortal.Get(numberOfValues - 1);
+        return result;
+    }
+*/
+    
   //----------------------------------------------------------------------------
   template<typename T, class CIn, class COut, class BinaryFunctor>
   VTKM_CONT_EXPORT static T ScanInclusive(
@@ -129,12 +214,13 @@ public:
       );
 
       internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
-
+      std::cout << "Initial value for the binary operator is " << vtkm::cont::initial_value<BinaryFunctor>().call() << std::endl;
       hpx::parallel::inclusive_scan(hpx::parallel::par,
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
-        T(),
+//                                    T(),
+                                    vtkm::cont::initial_value<BinaryFunctor>().call(),
         wrappedOp);
 
       std::cout << "\nOutput values " ;
@@ -176,7 +262,7 @@ public:
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal), T());
 
-    result =  outputPortal.Get(numberOfValues - 1) + temp;
+    result =  T(outputPortal.Get(numberOfValues - 1)) + temp;
     return result;
   }
 
