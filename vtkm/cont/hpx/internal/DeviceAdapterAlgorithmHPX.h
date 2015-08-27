@@ -39,6 +39,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <ostream>
 
 namespace vtkm {
 namespace cont {
@@ -119,31 +120,30 @@ public:
       T result = T();
       if (numberOfValues <= 0) { return result; }
 
-  /*
+
       std::cout << "\nInput values " ;
       std::copy(
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         std::ostream_iterator<T>(std::cout, ", ")
       );
-  */
+
       internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
 
-      hpx::parallel::inclusive_scan(hpx::parallel::par,
+      hpx::parallel::inclusive_scan(hpx::parallel::seq,
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
         T(),
         wrappedOp);
 
-  /*
       std::cout << "\nOutput values " ;
       std::copy(
         vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
         vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
         std::ostream_iterator<T>(std::cout, ", ")
       );
-  */
+
       result =  outputPortal.Get(numberOfValues - 1);
       return result;
 }
@@ -167,13 +167,16 @@ public:
     T result = T();
     if (numberOfValues <= 0) { return result; }
 
+    // the calculation is 'in place' so get this value before it is overwritten
+    T temp = inputPortal.Get(numberOfValues - 1);
+
     // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue = 
     hpx::parallel::exclusive_scan(hpx::parallel::par, 
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal), T());
 
-    result =  outputPortal.Get(numberOfValues - 1) + inputPortal.Get(numberOfValues - 1);
+    result =  outputPortal.Get(numberOfValues - 1) + temp;
     return result;
   }
 
@@ -199,6 +202,10 @@ public:
     if (numberOfValues <= 0) { return result; }
 
     internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
+
+    // the calculation is 'in place' so get this value before it is overwritten
+    T temp = inputPortal.Get(numberOfValues - 1);
+
     // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
     hpx::parallel::exclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
@@ -207,7 +214,7 @@ public:
       initialValue,
       wrappedOp);
 
-    result =  outputPortal.Get(numberOfValues - 1) + inputPortal.Get(numberOfValues - 1);
+    result =  outputPortal.Get(numberOfValues - 1) + temp;
     return result;
   }
 
