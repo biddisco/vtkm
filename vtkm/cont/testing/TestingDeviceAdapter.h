@@ -1376,7 +1376,7 @@ private:
     // we know have an array whose sum = (OFFSET * ARRAY_SIZE),
     // let's validate that
     vtkm::Id sum = Algorithm::ScanExclusive(array, array);
-    std::cout << "Sum that was returned " << sum << std::endl;
+    std::cout << "Sum that was returned " << sum << " Expected " << (OFFSET * ARRAY_SIZE) << std::endl;
     VTKM_TEST_ASSERT(sum == (OFFSET * ARRAY_SIZE),
                      "Got bad sum from Exclusive Scan");
 

@@ -30,6 +30,7 @@
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
+#include <vtkm/cont/testing/TestingDeviceAdapter.h>
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 
@@ -42,6 +43,31 @@
 
 namespace vtkm {
 namespace cont {
+
+    template <typename Op>
+    struct initial_value
+    {
+        template <typename T>
+        constexpr static T call() { return T(); }
+    };
+
+    template <typename T, typename F>
+    struct initial_value<vtkm::cont::internal::WrappedBinaryOperator<T, F > >
+    {
+        constexpr static T call() { return T(); }
+    };
+    
+    template <typename T>
+    struct initial_value<vtkm::cont::internal::WrappedBinaryOperator<T, vtkm::internal::Multiply> >
+    {
+        constexpr static T call() { return T(1); }
+    };
+
+    template <typename T>
+    struct initial_value<vtkm::cont::internal::WrappedBinaryOperator<T, std::multiplies<T> > >
+    {
+        constexpr static T call() { return T(1); }
+    };
 
 template<>
 struct DeviceAdapterAlgorithm<vtkm::cont::DeviceAdapterTagHPX> :
@@ -119,31 +145,15 @@ public:
       T result = T();
       if (numberOfValues <= 0) { return result; }
 
-  /*
-      std::cout << "\nInput values " ;
-      std::copy(
-        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
-        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
-        std::ostream_iterator<T>(std::cout, ", ")
-      );
-  */
-      internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
-
+      typedef internal::WrappedBinaryOperator<T, BinaryFunctor> wrapped_type;
+      wrapped_type wrappedOp( binary_functor );
       hpx::parallel::inclusive_scan(hpx::parallel::par,
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
-        T(),
+        initial_value<wrapped_type>().call(),
         wrappedOp);
 
-  /*
-      std::cout << "\nOutput values " ;
-      std::copy(
-        vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
-        vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
-        std::ostream_iterator<T>(std::cout, ", ")
-      );
-  */
       result =  outputPortal.Get(numberOfValues - 1);
       return result;
 }
