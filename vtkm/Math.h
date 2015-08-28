@@ -26,6 +26,8 @@
 #define vtk_m_Math_h
 
 #include <vtkm/Types.h>
+#include <vtkm/TypeTraits.h>
+#include <vtkm/VecTraits.h>
 
 #ifndef VTKM_CUDA
 #include <limits.h>
@@ -36,14 +38,17 @@
 // boost seems to want to undefine those macros so that it can implement the
 // C99 templates and other implementations of the same name. Get around the
 // problem by using the boost version when compiling for a CPU.
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/math/special_functions/fpclassify.hpp>
 #include <boost/math/special_functions/sign.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 #include <cmath>
 #define VTKM_USE_BOOST_CLASSIFY
 #define VTKM_USE_BOOST_SIGN
 #endif // !VTKM_CUDA
 
 #if defined(VTKM_MSVC) && !defined(VTKM_CUDA)
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/math/special_functions/acosh.hpp>
 #include <boost/math/special_functions/asinh.hpp>
 #include <boost/math/special_functions/atanh.hpp>
@@ -51,6 +56,7 @@
 #include <boost/math/special_functions/expm1.hpp>
 #include <boost/math/special_functions/log1p.hpp>
 #include <boost/math/special_functions/round.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 #define VTKM_USE_BOOST_MATH
 #if _MSC_VER <= 1600
 #define VTKM_USE_STL_MIN_MAX
@@ -1251,9 +1257,7 @@ vtkm::Vec<T,2> Log1P(const vtkm::Vec<T,2> &x) {
 ///
 template<typename T>
 VTKM_EXEC_CONT_EXPORT
-T Max(const T &x, const T &y) {
-  return (x < y) ? y : x;
-}
+T Max(const T &x, const T &y);
 #ifdef VTKM_USE_STL_MIN_MAX
 VTKM_EXEC_CONT_EXPORT
 vtkm::Float32 Max(vtkm::Float32 x, vtkm::Float32 y) {
@@ -1278,9 +1282,7 @@ vtkm::Float64 Max(vtkm::Float64 x, vtkm::Float64 y) {
 ///
 template<typename T>
 VTKM_EXEC_CONT_EXPORT
-T Min(const T &x, const T &y) {
-  return (x < y) ? x : y;
-}
+T Min(const T &x, const T &y);
 #ifdef VTKM_USE_STL_MIN_MAX
 VTKM_EXEC_CONT_EXPORT
 vtkm::Float32 Min(vtkm::Float32 x, vtkm::Float32 y) {
@@ -1300,6 +1302,72 @@ vtkm::Float64 Min(vtkm::Float64 x, vtkm::Float64 y) {
   return VTKM_SYS_MATH_FUNCTION_64(fmin)(x,y);
 }
 #endif // !VTKM_USE_BOOST_MATH
+
+namespace detail {
+
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Max(T x, T y, vtkm::TypeTraitsScalarTag)
+{
+  return (x < y) ? y : x;
+}
+
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Max(const T &x, const T &y, vtkm::TypeTraitsVectorTag)
+{
+  typedef vtkm::VecTraits<T> Traits;
+  T result;
+  for (vtkm::IdComponent index = 0; index < Traits::NUM_COMPONENTS; index++)
+  {
+    Traits::SetComponent(result,
+                         index,
+                         vtkm::Max(Traits::GetComponent(x, index),
+                                   Traits::GetComponent(y, index)));
+  }
+  return result;
+}
+
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Min(T x, T y, vtkm::TypeTraitsScalarTag)
+{
+  return (x < y) ? x : y;
+}
+
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Min(const T &x, const T &y, vtkm::TypeTraitsVectorTag)
+{
+  typedef vtkm::VecTraits<T> Traits;
+  T result;
+  for (vtkm::IdComponent index = 0; index < Traits::NUM_COMPONENTS; index++)
+  {
+    Traits::SetComponent(result,
+                         index,
+                         vtkm::Min(Traits::GetComponent(x, index),
+                                   Traits::GetComponent(y, index)));
+  }
+  return result;
+}
+
+} // namespace detail
+
+/// Returns \p x or \p y, whichever is larger.
+///
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Max(const T &x, const T &y) {
+  return detail::Max(x, y, typename vtkm::TypeTraits<T>::DimensionalityTag());
+}
+
+/// Returns \p x or \p y, whichever is smaller.
+///
+template<typename T>
+VTKM_EXEC_CONT_EXPORT
+T Min(const T &x, const T &y) {
+  return detail::Min(x, y, typename vtkm::TypeTraits<T>::DimensionalityTag());
+}
 
 
 //-----------------------------------------------------------------------------
@@ -1786,7 +1854,7 @@ vtkm::Float64 ModF(vtkm::Float64 x, vtkm::Float64 &integral)
 }
 
 //-----------------------------------------------------------------------------
-/// Return the absolute value of \x. That is, return \p x if it is positive or
+/// Return the absolute value of \p x. That is, return \p x if it is positive or
 /// \p -x if it is negative.
 ///
 VTKM_EXEC_CONT_EXPORT
@@ -1849,7 +1917,7 @@ vtkm::Vec<T,2> Abs(const vtkm::Vec<T,2> &x) {
                         vtkm::Abs(x[1]));
 }
 
-/// Returns a nonzero value if \x is negative.
+/// Returns a nonzero value if \p x is negative.
 ///
 VTKM_EXEC_CONT_EXPORT
 vtkm::Int32 SignBit(vtkm::Float32 x) {

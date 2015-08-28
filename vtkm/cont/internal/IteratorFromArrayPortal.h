@@ -24,8 +24,10 @@
 
 #include <vtkm/cont/Assert.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/iterator/iterator_facade.hpp>
 #include <boost/mpl/assert.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {
@@ -85,8 +87,7 @@ class IteratorFromArrayPortal : public
       IteratorFromArrayPortal<ArrayPortalType>,
       typename ArrayPortalType::ValueType,
       std::random_access_iterator_tag,
-      detail::IteratorFromArrayPortalValue<ArrayPortalType>,
-      vtkm::Id>
+      detail::IteratorFromArrayPortalValue<ArrayPortalType> >
 {
 public:
 
@@ -148,22 +149,24 @@ private:
   }
 
   VTKM_CONT_EXPORT
-  void advance(vtkm::Id delta)
+  void advance(
+      typename IteratorFromArrayPortal<ArrayPortalType>::difference_type delta)
   {
-    this->Index += delta;
+    this->Index += static_cast<vtkm::Id>(delta);
     VTKM_ASSERT_CONT(this->Index >= 0);
     VTKM_ASSERT_CONT(this->Index <= this->Portal.GetNumberOfValues());
   }
 
   VTKM_CONT_EXPORT
-  vtkm::Id
+  typename IteratorFromArrayPortal<ArrayPortalType>::difference_type
   distance_to(const IteratorFromArrayPortal<ArrayPortalType> &other) const
   {
     // Technically, we should probably check that the portals are the same,
     // but the portal interface does not specify an equal operator.  It is
     // by its nature undefined what happens when comparing iterators from
     // different portals anyway.
-    return other.Index - this->Index;
+    return static_cast<typename IteratorFromArrayPortal<ArrayPortalType>::difference_type>(
+        other.Index - this->Index);
   }
 };
 
@@ -192,9 +195,26 @@ void swap( vtkm::cont::internal::detail::IteratorFromArrayPortalValue<T> a,
   a.Swap(b);
 }
 
-
 }
 }
 } // namespace vtkm::cont::internal
+
+namespace boost {
+
+/// The boost::iterator_facade lets you redefine the reference type, which is
+/// good since you cannot set an array portal from a reference in general.
+/// However, the iterator_facade then checks to see if the reference type is an
+/// actual reference, and if it is not it can set up some rather restrictive
+/// traits that we do not want. To get around this, specialize the
+/// boost::is_reference type check to declare our value class as a reference
+/// type. Even though it is not a true reference type, its operators make it
+/// behave like one.
+///  
+template<typename T>
+struct is_reference<
+    vtkm::cont::internal::detail::IteratorFromArrayPortalValue<T> >
+  : public boost::true_type {  };
+
+} // namespace boost
 
 #endif //vtk_m_cont_internal_IteratorFromArrayPortal_h

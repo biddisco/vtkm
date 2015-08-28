@@ -28,6 +28,8 @@ set(headers
 VTKM_declare_headers(${headers})
 
 set(unit_tests
+  UnitTestBinaryPredicates.cxx
+  UnitTestBinaryOperators.cxx
   UnitTestExtent.cxx
   UnitTestListTag.cxx
   UnitTestMath.cxx
@@ -37,7 +39,10 @@ set(unit_tests
   UnitTestTypeListTag.cxx
   UnitTestTypes.cxx
   UnitTestTypeTraits.cxx
+  UnitTestUnaryPredicates.cxx
+  UnitTestVectorAnalysis.cxx
   UnitTestVecTraits.cxx
+  UnitTestVecVariable.cxx
   )
 
 add_executable(handlecheck ArrayHandleTest.cxx)

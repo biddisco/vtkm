@@ -18,26 +18,6 @@
 //  this software.
 //============================================================================
 
-//============================================================================
-//  Copyright (c) Kitware, Inc.
-//  All rights reserved.
-//  See LICENSE.txt for details.
-//  This software is distributed WITHOUT ANY WARRANTY; without even
-//  the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-//  PURPOSE.  See the above copyright notice for more information.
-//
-//  Copyright 2014 Sandia Corporation.
-//  Copyright 2014 UT-Battelle, LLC.
-//  Copyright 2014 Los Alamos National Security.
-//
-//  Under the terms of Contract DE-AC04-94AL85000 with Sandia Corporation,
-//  the U.S. Government retains certain rights in this software.
-//
-//  Under the terms of Contract DE-AC52-06NA25396 with Los Alamos National
-//  Laboratory (LANL), the U.S. Government retains certain rights in
-//  this software.
-//============================================================================
-
 #include <vtkm/Types.h>
 
 #include <vtkm/testing/Testing.h>
@@ -131,16 +111,24 @@ void GeneralVecTypeTest(const vtkm::Vec<ComponentType,Size> &)
 {
   typedef vtkm::Vec<ComponentType,Size> T;
 
+  VTKM_TEST_ASSERT(T::NUM_COMPONENTS == Size,
+                   "NUM_COMPONENTS is wrong size.");
+ 
   //grab the number of elements of T
   T a, b, c;
-  typename T::ComponentType s(5);
+  ComponentType s(5);
+
+  VTKM_TEST_ASSERT(a.GetNumberOfComponents() == Size,
+                   "GetNumberOfComponents returns wrong size.");
 
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
   {
-    a[i]=typename T::ComponentType((i+1)*2);
-    b[i]=typename T::ComponentType(i+1);
-    c[i]=typename T::ComponentType((i+1)*2);
+    a[i]=ComponentType((i+1)*2);
+    b[i]=ComponentType(i+1);
   }
+
+  a.CopyInto(c);
+  VTKM_TEST_ASSERT(test_equal(a, c), "CopyInto does not work.");
 
   //verify prefix and postfix increment and decrement
   ++c[T::NUM_COMPONENTS-1];
@@ -149,36 +137,46 @@ void GeneralVecTypeTest(const vtkm::Vec<ComponentType,Size> &)
   c[T::NUM_COMPONENTS-1]--;
 
   //make c nearly like a to verify == and != are correct.
-  c[T::NUM_COMPONENTS-1]=(c[T::NUM_COMPONENTS-1]-1);
+  c[T::NUM_COMPONENTS-1]=ComponentType(c[T::NUM_COMPONENTS-1]-1);
 
   T plus = a + b;
   T correct_plus;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  { correct_plus[i] = a[i] + b[i]; }
+  {
+    correct_plus[i] = ComponentType(a[i] + b[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(plus, correct_plus),"Tuples not added correctly.");
 
   T minus = a - b;
   T correct_minus;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  { correct_minus[i] = a[i] - b[i]; }
+  {
+    correct_minus[i] = ComponentType(a[i] - b[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(minus, correct_minus),"Tuples not subtracted correctly.");
 
 
   T mult = a * b;
   T correct_mult;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  { correct_mult[i] = a[i] * b[i]; }
+  {
+    correct_mult[i] = ComponentType(a[i] * b[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(mult, correct_mult),"Tuples not multiplied correctly.");
 
   T div = a / b;
   T correct_div;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  { correct_div[i] = a[i] / b[i]; }
+  {
+    correct_div[i] = ComponentType(a[i] / b[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(div,correct_div),"Tuples not divided correctly.");
 
   mult = s * a;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  { correct_mult[i] = s * a[i]; }
+  {
+    correct_mult[i] = ComponentType(s * a[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(mult, correct_mult),
                    "Scalar and Tuple did not multiply correctly.");
 
@@ -186,10 +184,12 @@ void GeneralVecTypeTest(const vtkm::Vec<ComponentType,Size> &)
   VTKM_TEST_ASSERT(test_equal(mult, correct_mult),
                    "Tuple and Scalar to not multiply correctly.");
 
-  typename T::ComponentType d = vtkm::dot(a, b);
-  typename T::ComponentType correct_d = 0;
+  ComponentType d = vtkm::dot(a, b);
+  ComponentType correct_d = 0;
   for(vtkm::IdComponent i=0; i < T::NUM_COMPONENTS; ++i)
-  {correct_d += a[i] * b[i]; }
+  {
+    correct_d = ComponentType(correct_d + a[i] * b[i]);
+  }
   VTKM_TEST_ASSERT(test_equal(d, correct_d), "dot(Tuple) wrong");
 
   VTKM_TEST_ASSERT(!(a < b), "operator< wrong");
@@ -411,25 +411,25 @@ void TypeTest(Scalar)
   Scalar a = 4;
   Scalar b = 2;
 
-  Scalar plus = a + b;
+  Scalar plus = Scalar(a + b);
   if (plus != 6)
   {
     VTKM_TEST_FAIL("Scalars do not add correctly.");
   }
 
-  Scalar minus = a - b;
+  Scalar minus = Scalar(a - b);
   if (minus != 2)
   {
     VTKM_TEST_FAIL("Scalars to not subtract correctly.");
   }
 
-  Scalar mult = a * b;
+  Scalar mult = Scalar(a * b);
   if (mult != 8)
   {
     VTKM_TEST_FAIL("Scalars to not multiply correctly.");
   }
 
-  Scalar div = a / b;
+  Scalar div = Scalar(a / b);
   if (div != 2)
   {
     VTKM_TEST_FAIL("Scalars to not divide correctly.");

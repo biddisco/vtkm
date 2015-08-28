@@ -21,11 +21,12 @@
 #ifndef vtk_m_cont_cuda_internal_DeviceAdapterThrust_h
 #define vtk_m_cont_cuda_internal_DeviceAdapterThrust_h
 
-#include <vtkm/Types.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/Timer.h>
+#include <vtkm/Types.h>
 #include <vtkm/TypeTraits.h>
+#include <vtkm/UnaryPredicates.h>
 
 #include <vtkm/cont/cuda/internal/MakeThrustIterator.h>
 
@@ -34,13 +35,7 @@
 #include <vtkm/exec/cuda/internal/WrappedOperators.h>
 
 // Disable warnings we check vtkm for but Thrust does not.
-#if defined(__GNUC__) || defined(____clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif // gcc || clang
-
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <thrust/advance.h>
 #include <thrust/binary_search.h>
 #include <thrust/copy.h>
@@ -52,24 +47,47 @@
 
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/system/cuda/execution_policy.h>
-
-#if defined(__GNUC__) || defined(____clang__)
-#pragma GCC diagnostic pop
-#endif // gcc || clang
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {
 namespace cuda {
 namespace internal {
 
+static
+__global__
+void DetermineProperXGridSize(vtkm::UInt32 desired_size,
+                              vtkm::UInt32* actual_size)
+{
+//used only to see if we can launch kernels with a x grid size that
+//matches the max of the graphics card, or are we having to fall back
+//to SM_2 grid sizes
+ if(blockIdx.x != 0)
+  {
+  return;
+  }
+#if __CUDA_ARCH__ <= 200
+  const vtkm::UInt32 maxXGridSizeForSM2 = 65535;
+  *actual_size = maxXGridSizeForSM2;
+#else
+  *actual_size = desired_size;
+#endif
+}
+
 template<class FunctorType>
 __global__
-void Schedule1DIndexKernel(FunctorType functor, vtkm::Id length)
+void Schedule1DIndexKernel(FunctorType functor,
+                           vtkm::Id numberOfKernelsInvoked,
+                           vtkm::Id length)
 {
-  const int idx = blockDim.x * blockIdx.x + threadIdx.x;
-  if(idx < length)
+  //Note a cuda launch can only handle at most 2B iterations of a kernel
+  //because it holds all of the indexes inside UInt32, so for use to
+  //handle datasets larger than 2B, we need to execute multiple kernels
+  const vtkm::Id index = numberOfKernelsInvoked +
+                         static_cast<vtkm::Id>(blockDim.x * blockIdx.x + threadIdx.x);
+  if(index < length)
     {
-    functor(idx);
+    functor(index);
     }
 }
 
@@ -91,6 +109,14 @@ void Schedule3DIndexKernel(FunctorType functor, dim3 size)
   functor( idx );
 }
 
+template<typename T, typename BinaryOperationType >
+__global__
+void SumExclusiveScan(T a, T b, T result,
+                      BinaryOperationType binary_op)
+{
+  result = binary_op(a,b);
+}
+
 inline
 void compute_block_size(dim3 rangeMax, dim3 blockSize3d, dim3& gridSize3d)
 {
@@ -99,6 +125,7 @@ void compute_block_size(dim3 rangeMax, dim3 blockSize3d, dim3& gridSize3d)
   gridSize3d.z = (rangeMax.z % blockSize3d.z != 0) ? (rangeMax.z / blockSize3d.z + 1) : (rangeMax.z / blockSize3d.z);
 }
 
+#ifdef ANALYZE_VTKM_SCHEDULER
 class PerfRecord
 {
 public:
@@ -189,12 +216,11 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
-  const vtkm::UInt32 numInstances = static_cast<vtkm::UInt32>(rangeMax[0] * rangeMax[1] * rangeMax[2]);
-  const vtkm::UInt32 blockSize = 128;
-  const vtkm::UInt32 blocksPerGrid = (numInstances + blockSize - 1) / blockSize;
-
   cudaEventRecord(start, 0);
-  Schedule1DIndexKernel<Functor> <<<blocksPerGrid, blockSize>>> (functor, numInstances);
+  typedef
+    vtkm::cont::cuda::internal::DeviceAdapterAlgorithmThrust<
+          vtkm::cont::DeviceAdapterTagCuda > Algorithm;
+  Algorithm::Schedule(functor, numInstances);
   cudaEventRecord(stop, 0);
 
   cudaEventSynchronize(stop);
@@ -232,6 +258,8 @@ static void compare_3d_schedule_patterns(Functor functor, const vtkm::Id3& range
   std::cout << "GridSize of: " << gridSize3d.x << "," << gridSize3d.y << "," << gridSize3d.z << " required: " << elapsedTimeMilliseconds << std::endl;
   }
 }
+
+#endif
 
 
 /// This class can be subclassed to implement the DeviceAdapterAlgorithm for a
@@ -278,11 +306,12 @@ private:
   template<class InputPortal, class ValuesPortal, class OutputPortal,
            class BinaryCompare>
   VTKM_CONT_EXPORT static void LowerBoundsPortal(const InputPortal &input,
-                                                const ValuesPortal &values,
-                                                const OutputPortal &output,
-                                                BinaryCompare binary_compare)
+                                                 const ValuesPortal &values,
+                                                 const OutputPortal &output,
+                                                 BinaryCompare binary_compare)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,
+    typedef typename InputPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryPredicate<ValueType,
                                             BinaryCompare> bop(binary_compare);
     ::thrust::lower_bound(thrust::cuda::par,
                           IteratorBegin(input),
@@ -310,7 +339,8 @@ private:
                             typename InputPortal::ValueType initialValue,
                             BinaryFunctor binary_functor)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename InputPortal::ValueType,
+    typedef typename InputPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<ValueType,
                                                       BinaryFunctor> bop(binary_functor);
     return ::thrust::reduce(thrust::cuda::par,
                             IteratorBegin(input),
@@ -341,7 +371,8 @@ private:
 
     ::thrust::equal_to<typename KeysPortal::ValueType> binaryPredicate;
 
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename ValuesPortal::ValueType,
+    typedef typename ValuesPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<ValueType,
                                                       BinaryFunctor> bop(binary_functor);
     result_iterators = ::thrust::reduce_by_key(thrust::cuda::par,
                                                IteratorBegin(keys),
@@ -361,7 +392,7 @@ private:
   typename InputPortal::ValueType ScanExclusivePortal(const InputPortal &input,
                                                       const OutputPortal &output)
   {
-    typedef typename InputPortal::ValueType ValueType;
+    typedef typename OutputPortal::ValueType ValueType;
 
     return ScanExclusivePortal(input,
                                output,
@@ -377,8 +408,17 @@ private:
   {
     // Use iterator to get value so that thrust device_ptr has chance to handle
     // data on device.
-    typedef typename InputPortal::ValueType ValueType;
-    ValueType inputEnd = *(IteratorEnd(input) - 1);
+    typedef typename OutputPortal::ValueType ValueType;
+
+    //store the current value in last position array in a separate cuda
+    //memory location, we have size two so that we can store the result
+    ::thrust::system::cuda::vector< ValueType > sum(2);
+
+    ::thrust::copy_n(thrust::cuda::par,
+                     IteratorEnd(input) - 1,
+                     1,
+                     sum.begin()
+                     );
 
     vtkm::exec::cuda::internal::WrappedBinaryOperator<ValueType,
                                                       BinaryOperation> bop(binaryOp);
@@ -392,8 +432,9 @@ private:
                                                 vtkm::TypeTraits<ValueType>::ZeroInitialization(),
                                                 bop);
 
-    //return the value at the last index in the array, as that is the sum
-    return binaryOp( *(end-1), inputEnd);
+    //execute the binaryOp one last time on the device.
+    SumExclusiveScan <<<1,1>>> (sum[0], *(end-1), sum[1], binaryOp);
+    return sum[1];
   }
 
   template<class InputPortal, class OutputPortal>
@@ -401,7 +442,7 @@ private:
   typename InputPortal::ValueType ScanInclusivePortal(const InputPortal &input,
                                                       const OutputPortal &output)
   {
-    typedef typename InputPortal::ValueType ValueType;
+    typedef typename OutputPortal::ValueType ValueType;
     return ScanInclusivePortal(input, output, ::thrust::plus<ValueType>() );
   }
 
@@ -411,7 +452,8 @@ private:
                                                       const OutputPortal &output,
                                                       BinaryFunctor binary_functor)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<typename InputPortal::ValueType,
+    typedef typename OutputPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryOperator<ValueType,
                                                       BinaryFunctor> bop(binary_functor);
 
     typedef typename detail::IteratorTraits<OutputPortal>::IteratorType
@@ -438,7 +480,9 @@ private:
   VTKM_CONT_EXPORT static void SortPortal(const ValuesPortal &values,
                                          BinaryCompare binary_compare)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    typedef typename ValuesPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryPredicate<ValueType,
+                                                       BinaryCompare> bop(binary_compare);
     ::thrust::sort(thrust::cuda::par,
                    IteratorBegin(values),
                    IteratorEnd(values),
@@ -459,7 +503,9 @@ private:
                                                const ValuesPortal &values,
                                                BinaryCompare binary_compare)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    typedef typename KeysPortal::ValueType ValueType;
+    vtkm::exec::cuda::internal::WrappedBinaryPredicate<ValueType,
+                                                       BinaryCompare> bop(binary_compare);
     ::thrust::sort_by_key(thrust::cuda::par,
                           IteratorBegin(keys),
                           IteratorEnd(keys),
@@ -528,7 +574,10 @@ private:
   {
     typedef typename detail::IteratorTraits<ValuesPortal>::IteratorType
                                                             IteratorType;
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    typedef typename ValuesPortal::ValueType ValueType;
+
+    vtkm::exec::cuda::internal::WrappedBinaryPredicate<ValueType,
+                                                       BinaryCompare> bop(binary_compare);
     IteratorType begin = IteratorBegin(values);
     IteratorType newLast = ::thrust::unique(thrust::cuda::par,
                                             begin,
@@ -559,7 +608,10 @@ private:
                                                 const OutputPortal &output,
                                                 BinaryCompare binary_compare)
   {
-    vtkm::exec::cuda::internal::WrappedBinaryOperator<bool,BinaryCompare> bop(binary_compare);
+    typedef typename OutputPortal::ValueType ValueType;
+
+    vtkm::exec::cuda::internal::WrappedBinaryPredicate<ValueType,
+                                                       BinaryCompare> bop(binary_compare);
     ::thrust::upper_bound(thrust::cuda::par,
                           IteratorBegin(input),
                           IteratorEnd(input),
@@ -787,6 +839,45 @@ private:
     return devicePtr;
     }
 
+  // we query cuda for the max blocks per grid for 1D scheduling
+  // and cache the values in static variables
+  VTKM_CONT_EXPORT
+  static vtkm::Vec<vtkm::UInt32,3> GetMaxGridOfThreadBlocks()
+    {
+    static bool gridQueryInit = false;
+    static vtkm::Vec< vtkm::UInt32, 3> maxGridSize;
+    if( !gridQueryInit )
+      {
+      gridQueryInit = true;
+      int currDevice; cudaGetDevice(&currDevice); //get deviceid from cuda
+
+      cudaDeviceProp properties;
+      cudaGetDeviceProperties(&properties, currDevice);
+      maxGridSize[0] = static_cast<vtkm::UInt32>(properties.maxGridSize[0]);
+      maxGridSize[1] = static_cast<vtkm::UInt32>(properties.maxGridSize[1]);
+      maxGridSize[2] = static_cast<vtkm::UInt32>(properties.maxGridSize[2]);
+
+      //Note: While in practice SM_3+ devices can schedule up to (2^31-1) grids
+      //in the X direction, it is dependent on the code being compiled for SM3+.
+      //If not, it falls back to SM_2 limitation of 65535 being the largest grid
+      //size.
+      //Now since SM architecture is only available inside kernels we have to
+      //invoke one to see what the actual limit is for our device.  So that is
+      //what we are going to do next, and than we will store that result
+
+      vtkm::UInt32 *dev_actual_size;
+      cudaMalloc( (void**)&dev_actual_size, sizeof(vtkm::UInt32) );
+      DetermineProperXGridSize <<<1,1>>> (maxGridSize[0], dev_actual_size);
+      cudaDeviceSynchronize();
+      cudaMemcpy( &maxGridSize[0],
+                  dev_actual_size,
+                  sizeof(vtkm::UInt32),
+                  cudaMemcpyDeviceToHost );
+      cudaFree(dev_actual_size);
+      }
+    return maxGridSize;
+    }
+
 public:
   template<class Functor>
   VTKM_CONT_EXPORT static void Schedule(Functor functor, vtkm::Id numInstances)
@@ -806,9 +897,30 @@ public:
     functor.SetErrorMessageBuffer(errorMessage);
 
     const vtkm::UInt32 blockSize = 128;
-    const vtkm::UInt32 blocksPerGrid = (static_cast<vtkm::UInt32>(numInstances) + blockSize - 1) / blockSize;
+    const vtkm::UInt32 maxblocksPerLaunch = GetMaxGridOfThreadBlocks()[0];
+    const vtkm::Id totalBlocks = (numInstances + blockSize - 1) / blockSize;
 
-    Schedule1DIndexKernel<Functor> <<<blocksPerGrid, blockSize>>> (functor, numInstances);
+    //Note a cuda launch can only handle at most 2B iterations of a kernel
+    //because it holds all of the indexes inside UInt32, so for use to
+    //handle datasets larger than 2B, we need to execute multiple kernels
+    if(totalBlocks < maxblocksPerLaunch)
+      {
+      Schedule1DIndexKernel<Functor> <<<totalBlocks, blockSize>>> (functor,
+                                                                   vtkm::Id(0),
+                                                                   numInstances);
+      }
+    else
+      {
+      const vtkm::Id numberOfKernelsToRun = blockSize * maxblocksPerLaunch;
+      for(vtkm::Id numberOfKernelsInvoked = 0;
+          numberOfKernelsInvoked < numInstances;
+          numberOfKernelsInvoked += numberOfKernelsToRun)
+        {
+        Schedule1DIndexKernel<Functor> <<<maxblocksPerLaunch, blockSize>>> (functor,
+                                                                            numberOfKernelsInvoked,
+                                                                            numInstances);
+        }
+      }
 
     //sync so that we can check the results of the call.
     //In the future I want move this before the schedule call, and throwing
@@ -849,21 +961,24 @@ public:
                       static_cast<vtkm::UInt32>(rangeMax[1]),
                       static_cast<vtkm::UInt32>(rangeMax[2]) );
 
+
     //currently we presume that 3d scheduling access patterns prefer accessing
     //memory in the X direction. Also should be good for thin in the Z axis
-    //algorithms
+    //algorithms.
     dim3 blockSize3d(64,2,1);
 
     //handle the simple use case of 'bad' datasets which are thin in X
     //but larger in the other directions, allowing us decent performance with
     //that use case.
-    if(rangeMax[0] <= 64 && rangeMax[1] >= 64 && rangeMax[2] >= 64)
+    if(rangeMax[0] <= 128 &&
+       (rangeMax[0] < rangeMax[1] || rangeMax[0] < rangeMax[2]) )
       {
       blockSize3d = dim3(16,4,4);
       }
 
     dim3 gridSize3d;
     compute_block_size(ranges, blockSize3d, gridSize3d);
+
     Schedule3DIndexKernel<Functor> <<<gridSize3d, blockSize3d>>> (functor, ranges);
 
     //sync so that we can check the results of the call.
@@ -928,7 +1043,7 @@ public:
                                     ::thrust::make_counting_iterator<vtkm::Id>(size),
                                     stencil.PrepareForInput(DeviceAdapterTag()),
                                     output.PrepareForOutput(size, DeviceAdapterTag()),
-                                    ::vtkm::not_default_constructor<T>());
+                                    ::vtkm::NotZeroInitialized());
     output.Shrink(newSize);
   }
 
@@ -946,7 +1061,7 @@ public:
     vtkm::Id newSize = CopyIfPortal(input.PrepareForInput(DeviceAdapterTag()),
                                     stencil.PrepareForInput(DeviceAdapterTag()),
                                     output.PrepareForOutput(size, DeviceAdapterTag()),
-                                    ::vtkm::not_default_constructor<T>()); //yes on the stencil
+                                    ::vtkm::NotZeroInitialized()); //yes on the stencil
     output.Shrink(newSize);
   }
 

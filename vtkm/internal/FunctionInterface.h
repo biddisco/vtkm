@@ -25,12 +25,7 @@
 #include <vtkm/internal/IndexTag.h>
 
 
-// Disable conversion warnings inside boost
-# if defined(__GNUC__) || defined(____clang__)
-#   pragma GCC diagnostic push
-#   pragma GCC diagnostic ignored "-Wconversion"
-# endif // gcc || clang
-
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/function_types/components.hpp>
 #include <boost/function_types/function_arity.hpp>
 #include <boost/function_types/function_type.hpp>
@@ -45,11 +40,8 @@
 #include <boost/mpl/less.hpp>
 #include <boost/mpl/push_back.hpp>
 #include <boost/utility/enable_if.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
-
-# if defined(__GNUC__) || defined(____clang__)
-#   pragma GCC diagnostic pop
-# endif // gcc || clang
 
 
 #include <vtkm/internal/FunctionInterfaceDetailPre.h>
@@ -804,20 +796,23 @@ public:
   {
     typedef typename vtkm::internal::FunctionInterface<NewFunction>::template AppendType<T>::type
         NextInterfaceType;
+
+    //Determine if we should do the next transform, and if so convert from
+    //boost mpl to boost::true_type/false_type ( for readability of sigs)
+    typedef typename boost::mpl::less<
+                  typename NextInterfaceType::SignatureArity,
+                  typename vtkm::internal::FunctionInterface<OriginalFunction>::SignatureArity
+              >::type IsLessType;
+    typedef boost::integral_constant<bool, IsLessType::value > ShouldDoNextTransformType;
+
     NextInterfaceType nextInterface = this->NewInterface.Append(newParameter);
-    this->DoNextTransform(nextInterface);
+    this->DoNextTransform(nextInterface, ShouldDoNextTransformType());
     this->NewInterface.GetReturnValueSafe()
         = nextInterface.GetReturnValueSafe();
   }
 
   template<typename NextFunction>
-  VTKM_CONT_EXPORT
-  typename boost::enable_if<
-        typename boost::mpl::less<
-                  typename vtkm::internal::FunctionInterface<NextFunction>::SignatureArity,
-                  typename vtkm::internal::FunctionInterface<OriginalFunction>::SignatureArity
-                                 >::type
-                           >::type
+  void
   DoNextTransform(
       vtkm::internal::FunctionInterface<NextFunction> &nextInterface) const
   {
@@ -835,16 +830,32 @@ public:
                     indexTag);
   }
 
+private:
   template<typename NextFunction>
-  VTKM_CONT_EXPORT
-  typename boost::disable_if<
-        typename boost::mpl::less<
-                  typename vtkm::internal::FunctionInterface<NextFunction>::SignatureArity,
-                  typename vtkm::internal::FunctionInterface<OriginalFunction>::SignatureArity
-                                 >::type
-                           >::type
+  void
   DoNextTransform(
-      vtkm::internal::FunctionInterface<NextFunction> &nextInterface) const
+      vtkm::internal::FunctionInterface<NextFunction> &nextInterface,
+      boost::true_type) const
+  {
+    typedef FunctionInterfaceDynamicTransformContContinue<
+        OriginalFunction,NextFunction,TransformFunctor,FinishFunctor> NextContinueType;
+    NextContinueType nextContinue = NextContinueType(this->OriginalInterface,
+                                                     nextInterface,
+                                                     this->Transform,
+                                                     this->Finish);
+    static const vtkm::IdComponent Index =
+        vtkm::internal::FunctionInterface<NextFunction>::ARITY + 1;
+    vtkm::internal::IndexTag<Index> indexTag;
+    this->Transform(this->OriginalInterface.GetParameter(indexTag),
+                    nextContinue,
+                    indexTag);
+  }
+
+  template<typename NextFunction>
+  void
+  DoNextTransform(
+      vtkm::internal::FunctionInterface<NextFunction> &nextInterface,
+      boost::false_type) const
   {
     this->Finish(nextInterface);
   }

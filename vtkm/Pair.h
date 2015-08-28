@@ -25,6 +25,7 @@
 #include <vtkm/internal/ExportMacros.h>
 #include <vtkm/TypeTraits.h>
 
+#include <iostream>
 #include <utility>
 
 namespace vtkm {
@@ -154,7 +155,7 @@ vtkm::Pair<T1,T2> make_Pair(const T1 &firstSrc, const T2 &secondSrc)
 template<typename T, typename U>
 struct TypeTraits<vtkm::Pair<T,U> >
 {
-  typedef TypeTraitsUnkownTag NumericTag;
+  typedef TypeTraitsUnknownTag NumericTag;
   typedef TypeTraitsScalarTag DimensionalityTag;
 
   VTKM_EXEC_CONT_EXPORT
@@ -165,5 +166,14 @@ struct TypeTraits<vtkm::Pair<T,U> >
 
 
 } // namespace vtkm
+
+/// Helper function for printing out pairs during testing.
+///
+template<typename T, typename U>
+VTKM_EXEC_CONT_EXPORT
+std::ostream &operator<<(std::ostream &stream, const vtkm::Pair<T,U> &vec)
+{
+  return stream << "[" << vec.first << "," << vec.second << "]";
+}
 
 #endif //vtk_m_Pair_h

@@ -26,7 +26,9 @@
 
 #include <vtkm/testing/Testing.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/type_traits/remove_const.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace testing {
@@ -44,26 +46,51 @@ inline void CompareDimensionalityTags(vtkm::TypeTraitsVectorTag,
   // If we are here, everything is fine.
 }
 
+template<vtkm::IdComponent NUM_COMPONENTS, typename T>
+inline void CheckIsStatic(const T &, vtkm::VecTraitsTagSizeStatic)
+{
+  VTKM_TEST_ASSERT(vtkm::VecTraits<T>::NUM_COMPONENTS == NUM_COMPONENTS,
+                   "Traits returns unexpected number of components");
+}
+
+template<vtkm::IdComponent NUM_COMPONENTS, typename T>
+inline void CheckIsStatic(const T &, vtkm::VecTraitsTagSizeVariable)
+{
+  // If we are here, everything is fine.
+}
+
 /// Compares some manual arithmetic through type traits to arithmetic with
 /// the Tuple class.
-template <class T>
+template <vtkm::IdComponent NUM_COMPONENTS, typename T>
 static void TestVecTypeImpl(
   const typename boost::remove_const<T>::type &vector)
 {
   typedef typename vtkm::VecTraits<T> Traits;
   typedef typename Traits::ComponentType ComponentType;
-  static const vtkm::IdComponent NUM_COMPONENTS = Traits::NUM_COMPONENTS;
   typedef typename boost::remove_const<T>::type NonConstT;
+
+  CheckIsStatic<NUM_COMPONENTS>(vector, typename Traits::IsSizeStatic());
+
+  VTKM_TEST_ASSERT(Traits::GetNumberOfComponents(vector) == NUM_COMPONENTS,
+                   "Traits returned wrong number of components.");
+
+  vtkm::Vec<ComponentType,NUM_COMPONENTS> vectorCopy;
+  Traits::CopyInto(vector, vectorCopy);
+  VTKM_TEST_ASSERT(test_equal(vectorCopy, vector), "CopyInto does not work.");
 
   {
     NonConstT result;
     const ComponentType multiplier = 4;
     for (vtkm::IdComponent i = 0; i < NUM_COMPONENTS; i++)
     {
-      Traits::SetComponent(result, i, multiplier*Traits::GetComponent(vector, i));
+      Traits::SetComponent(result,
+                           i,
+                           ComponentType(
+                               multiplier*Traits::GetComponent(vector, i)));
     }
-    VTKM_TEST_ASSERT(test_equal(Traits::ToVec(result),
-                                multiplier*Traits::ToVec(vector)),
+    vtkm::Vec<ComponentType,NUM_COMPONENTS> resultCopy;
+    Traits::CopyInto(result, resultCopy);
+    VTKM_TEST_ASSERT(test_equal(resultCopy, multiplier*vectorCopy),
                      "Got bad result for scalar multiple");
   }
 
@@ -73,10 +100,11 @@ static void TestVecTypeImpl(
     for (vtkm::IdComponent i = 0; i < NUM_COMPONENTS; i++)
     {
       Traits::GetComponent(result, i)
-        = multiplier * Traits::GetComponent(vector, i);
+        = ComponentType(multiplier * Traits::GetComponent(vector, i));
     }
-    VTKM_TEST_ASSERT(test_equal(Traits::ToVec(result),
-                                multiplier*Traits::ToVec(vector)),
+    vtkm::Vec<ComponentType,NUM_COMPONENTS> resultCopy;
+    Traits::CopyInto(result, resultCopy);
+    VTKM_TEST_ASSERT(test_equal(resultCopy, multiplier*vectorCopy),
                      "Got bad result for scalar multiple");
   }
 
@@ -86,11 +114,10 @@ static void TestVecTypeImpl(
     {
       ComponentType component
         = Traits::GetComponent(vector, i);
-      result += component * component;
+      result = ComponentType(result + (component * component));
     }
     VTKM_TEST_ASSERT(
-      test_equal(result,
-                 vtkm::dot(Traits::ToVec(vector), Traits::ToVec(vector))),
+      test_equal(result, vtkm::dot(vectorCopy, vectorCopy)),
       "Got bad result for dot product");
   }
 
@@ -131,11 +158,11 @@ inline void CheckScalarComponentsTag(vtkm::VecTraitsTagSingleComponent)
 
 /// Compares some manual arithmetic through type traits to arithmetic with
 /// the Tuple class.
-template <class T>
+template <vtkm::IdComponent NUM_COMPONENTS, typename T>
 static void TestVecType(const T &vector)
 {
-  detail::TestVecTypeImpl<T>(vector);
-  detail::TestVecTypeImpl<const T>(vector);
+  detail::TestVecTypeImpl<NUM_COMPONENTS, T>(vector);
+  detail::TestVecTypeImpl<NUM_COMPONENTS, const T>(vector);
 }
 
 /// Checks to make sure that the HasMultipleComponents tag is actually for a

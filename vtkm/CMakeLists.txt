@@ -21,18 +21,22 @@
 include_directories(${Boost_INCLUDE_DIRS})
 
 set(headers
+  BinaryPredicates.h
+  BinaryOperators.h
   CellType.h
   Extent.h
   ListTag.h
   Math.h
   Matrix.h
   Pair.h
-  RegularConnectivity.h
-  RegularStructure.h
+  TopologyElementTag.h
   TypeListTag.h
   Types.h
   TypeTraits.h
+  VectorAnalysis.h
   VecTraits.h
+  VecVariable.h
+  UnaryPredicates.h
   )
 
 vtkm_pyexpander_generated_file(Math.h)
@@ -44,6 +48,10 @@ vtkm_declare_headers(${headers})
 add_subdirectory(testing)
 add_subdirectory(internal)
 
+if(VTKm_ENABLE_OPENGL_INTEROP)
+  add_subdirectory(opengl)
+endif(VTKm_ENABLE_OPENGL_INTEROP)
+
 #-----------------------------------------------------------------------------
 #add the control and exec folders
 add_subdirectory(cont)
@@ -52,3 +60,8 @@ add_subdirectory(exec)
 #-----------------------------------------------------------------------------
 #add the worklet folder
 add_subdirectory(worklet)
+
+#-----------------------------------------------------------------------------
+#add the benchmarking folder
+add_subdirectory(benchmarking)
+

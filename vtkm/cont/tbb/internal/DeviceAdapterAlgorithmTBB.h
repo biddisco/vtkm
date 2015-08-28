@@ -32,20 +32,28 @@
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/type_traits/remove_reference.hpp>
 
-// Disable warnings we check vtkm for but TBB does not.
-#if defined(__GNUC__) || defined(____clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif // gcc || clang
+// gcc || clang
+#if  defined(_WIN32)
+// TBB includes windows.h, which clobbers min and max functions so we
+// define NOMINMAX to fix that problem. We also include WIN32_LEAN_AND_MEAN
+// to reduce the number of macros and objects windows.h imports as those also
+// can cause conflicts
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
 
+#include <tbb/tbb_stddef.h>
+#if (TBB_VERSION_MAJOR == 4) && (TBB_VERSION_MINOR == 2)
 //we provide an patched implementation of tbb parallel_sort
 //that fixes ADL for std::swap. This patch has been submitted to Intel
-//and should be included in future version of TBB.
+//and is fixed in TBB 4.2 update 2.
 #include <vtkm/cont/tbb/internal/parallel_sort.h>
+#else
+#include <tbb/parallel_sort.h>
+#endif
 
 #include <tbb/blocked_range.h>
 #include <tbb/blocked_range3d.h>
@@ -54,11 +62,12 @@
 #include <tbb/partitioner.h>
 #include <tbb/tick_count.h>
 
+#if defined(_WIN32)
+#undef WIN32_LEAN_AND_MEAN
+#undef NOMINMAX
+#endif
 
-#if defined(__GNUC__) || defined(____clang__)
-#pragma GCC diagnostic pop
-#endif // gcc || clang
-
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {
@@ -72,7 +81,7 @@ struct DeviceAdapterAlgorithm<vtkm::cont::DeviceAdapterTagTBB> :
 private:
   // The "grain size" of scheduling with TBB.  Not a lot of thought has gone
   // into picking this size.
-  static const vtkm::Id TBB_GRAIN_SIZE = 128;
+  static const vtkm::Id TBB_GRAIN_SIZE = 4096;
 
   template<class InputPortalType, class OutputPortalType,
       class BinaryOperationType>
@@ -114,7 +123,7 @@ private:
 
       //use temp, and iterators instead of member variable to reduce false sharing
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->FirstCall ? *inIter++ :
                        this->BinaryOperation(this->Sum, *inIter++);
       this->FirstCall = false;
@@ -139,9 +148,9 @@ private:
 
       //use temp, and iterators instead of member variable to reduce false sharing
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       typename OutputIteratorsType::IteratorType outIter =
-        outputIterators.GetBegin() + range.begin();
+        outputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->FirstCall ? *inIter++ :
                        this->BinaryOperation(this->Sum, *inIter++);
       this->FirstCall = false;
@@ -185,7 +194,9 @@ private:
     ScanInclusiveBody<InputPortalType, OutputPortalType, WrappedBinaryOp>
         body(inputPortal, outputPortal, wrappedBinaryOp);
     vtkm::Id arrayLength = inputPortal.GetNumberOfValues();
-    ::tbb::parallel_scan( ::tbb::blocked_range<vtkm::Id>(0, arrayLength), body);
+
+    ::tbb::blocked_range<vtkm::Id> range(0, arrayLength, TBB_GRAIN_SIZE);
+    ::tbb::parallel_scan( range, body );
     return body.Sum;
   }
 
@@ -231,7 +242,7 @@ private:
 
       //move the iterator to the first item
       typename InputIteratorsType::IteratorType iter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->Sum;
       for (vtkm::Id index = range.begin(); index != range.end(); ++index, ++iter)
         {
@@ -253,9 +264,9 @@ private:
 
       //move the iterators to the first item
       typename InputIteratorsType::IteratorType inIter =
-        inputIterators.GetBegin() + range.begin();
+        inputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       typename OutputIteratorsType::IteratorType outIter =
-        outputIterators.GetBegin() + range.begin();
+        outputIterators.GetBegin() + static_cast<std::ptrdiff_t>(range.begin());
       ValueType temp = this->Sum;
       for (vtkm::Id index = range.begin(); index != range.end();
            ++index, ++inIter, ++outIter)
@@ -303,7 +314,8 @@ private:
         body(inputPortal, outputPortal, wrappedBinaryOp, initialValue);
     vtkm::Id arrayLength = inputPortal.GetNumberOfValues();
 
-    ::tbb::parallel_scan( ::tbb::blocked_range<vtkm::Id>(0, arrayLength), body);
+    ::tbb::blocked_range<vtkm::Id> range(0, arrayLength, TBB_GRAIN_SIZE);
+    ::tbb::parallel_scan( range, body );
 
     // Seems a little weird to me that we would return the last value in the
     // array rather than the sum, but that is how the function is specified.

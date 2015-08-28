@@ -30,12 +30,23 @@ set(VTKm_INSTALL_INCLUDE_DIR "include")
 set(VTKm_INSTALL_CONFIG_DIR "include")
 set(VTKm_INSTALL_CMAKE_MODULE_DIR "share/vtkm/cmake")
 
-set(VTKm_REQUIRED_BOOST_VERSION 1.48.0)
+set(VTKm_REQUIRED_BOOST_VERSION "1.48")
 
 # include some vtkm-specific cmake code.
 include(CMake/VTKmMacros.cmake)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${VTKm_SOURCE_DIR}/CMake)
+
+#-----------------------------------------------------------------------------
+# List of Boost features used:
+# * Smart Ptr
+# * Meta programming language
+# We check for boost first, as the device configuration code requires boost
+# to be found
+find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
+if(NOT Boost_FOUND)
+  message(FATAL_ERROR "Please specify where to find boost headers (${VTKm_REQUIRED_BOOST_VERSION}+)" )
+endif()
 
 #-----------------------------------------------------------------------------
 # Check for Cxx11 support.
@@ -56,6 +67,9 @@ include(CMake/VTKmCompilerExtras.cmake)
 option(VTKm_ENABLE_CUDA "Enable Cuda support" OFF)
 option(VTKm_ENABLE_TBB "Enable TBB support" OFF)
 option(VTKm_ENABLE_TESTING "Enable VTKm Testing" ON)
+option(VTKm_ENABLE_BENCHMARKS "Enable VTKm Benchmarking" OFF)
+
+option(VTKm_BUILD_DOCUMENTATION "Build Doxygen documentation" OFF)
 
 option(VTKm_USE_DOUBLE_PRECISION
   "Use double precision for floating point calculations"
@@ -128,7 +142,7 @@ if (VTKm_ENABLE_TESTING)
     COMMAND ${CMAKE_COMMAND} "-DVTKm_SOURCE_DIR=${VTKm_SOURCE_DIR}" -P "${VTKm_SOURCE_DIR}/CMake/VTKmCheckCopyright.cmake"
     )
   add_test(NAME SystemInformation
-    COMMAND ${CMAKE_COMMAND} "-DVTKm_BINARY_DIR=${VTKm_BINARY_DIR}" -P "${VTKm_SOURCE_DIR}/CMake/VTKmSystemInformation.cmake"
+    COMMAND ${CMAKE_COMMAND} "-DVTKm_SOURCE_DIR=${VTKm_SOURCE_DIR}" "-DVTKm_BINARY_DIR=${VTKm_BINARY_DIR}" -P "${VTKm_SOURCE_DIR}/CMake/VTKmSystemInformation.cmake"
     )
 endif (VTKm_ENABLE_TESTING)
 
@@ -146,16 +160,44 @@ check_type_size("long long" VTKm_SIZE_LONG_LONG BUILTIN_TYPES_ONLY)
 
 #-----------------------------------------------------------------------------
 # Build the configure file.
+# need to set VTKM_USE_DOUBLE_PRECISION, and VTKM_USE_64BIT_IDS as that
+# is the spelling we use for our defines.
+set(VTKM_USE_DOUBLE_PRECISION ${VTKm_USE_DOUBLE_PRECISION})
+set(VTKM_USE_64BIT_IDS ${VTKm_USE_64BIT_IDS})
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/vtkm/internal/Configure.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/vtkm/internal/Configure.h
   @ONLY)
 vtkm_install_headers(
   vtkm/internal ${CMAKE_CURRENT_BINARY_DIR}/vtkm/internal/Configure.h)
 
-# List of Boost features used:
-# * Smart Ptr
-# * Meta programming language
-find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
+unset(VTKM_USE_DOUBLE_PRECISION)
+unset(VTKM_USE_64BIT_IDS)
+
+
+#-----------------------------------------------------------------------------
+# Find OpenGL and GLEW, if both are found we can enable
+# the OpenGL Interop support. We use
+include(CMakeDependentOption)
+
+# enable Interop only if we have OpenGL and GLEW
+find_package(OpenGL)
+find_package(GLEW)
+find_package(GLUT)
+
+#dependent option reads, value to set, if condition is true, otherwise
+#use last value
+CMAKE_DEPENDENT_OPTION(VTKm_ENABLE_OPENGL_INTEROP
+                       "Enable OpenGL Interop will require GLEW"
+                       ON "OPENGL_FOUND;GLEW_FOUND" OFF)
+
+#Only enable OpenGL Interop tests if we have Interop enabled
+#and we have GLUT
+#dependent option reads, value to set, if condition is true, otherwise
+#use last value
+CMAKE_DEPENDENT_OPTION(VTKm_ENABLE_OPENGL_TESTS
+                       "Enable OpenGL Interop Render Window Tests"
+                       ON "VTKm_ENABLE_OPENGL_INTEROP;GLUT_FOUND" OFF)
 
 find_package(Pyexpander)
 
@@ -163,6 +205,14 @@ find_package(Pyexpander)
 # Add subdirectories
 add_subdirectory(vtkm)
 
+#-----------------------------------------------------------------------------
+# Build documentation
+if (VTKm_BUILD_DOCUMENTATION)
+  include(CMake/VTKmBuildDocumentation.cmake)
+  vtkm_build_documentation()
+endif()
+
+#-----------------------------------------------------------------------------
 # Configuration for build directory.
 set(VTKm_INCLUDE_DIRS_CONFIG "${VTKm_SOURCE_DIR};${VTKm_BINARY_DIR}")
 set(VTKm_CMAKE_MODULE_PATH_CONFIG "${VTKm_SOURCE_DIR}/CMake")
@@ -209,6 +259,9 @@ install(FILES ${VTKm_SOURCE_DIR}/LICENSE.txt
 install(
   FILES
     ${VTKm_SOURCE_DIR}/CMake/FindBoostHeaders.cmake
+    ${VTKm_SOURCE_DIR}/CMake/FindGLEW.cmake
+    ${VTKm_SOURCE_DIR}/CMake/FindTBB.cmake
+    ${VTKm_SOURCE_DIR}/CMake/FindThrust.cmake
   DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
   )
 
@@ -216,6 +269,7 @@ install(
 install(
   FILES
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmSerial.cmake
+    ${VTKm_SOURCE_DIR}/CMake/UseVTKmTBB.cmake
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmCuda.cmake
   DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
   )

@@ -26,7 +26,9 @@
 #include <vtkm/TypeTraits.h>
 #include <vtkm/VecTraits.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/static_assert.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 #include <iostream>
 #include <sstream>
@@ -275,21 +277,37 @@ bool test_equal(VectorType1 vector1,
 {
   typedef typename vtkm::VecTraits<VectorType1> Traits1;
   typedef typename vtkm::VecTraits<VectorType2> Traits2;
-  BOOST_STATIC_ASSERT(Traits1::NUM_COMPONENTS == Traits2::NUM_COMPONENTS);
+
+  if (Traits1::GetNumberOfComponents(vector1) !=
+      Traits2::GetNumberOfComponents(vector2))
+  {
+    return false;
+  }
 
   for (vtkm::IdComponent component = 0;
-       component < Traits1::NUM_COMPONENTS;
+       component < Traits1::GetNumberOfComponents(vector1);
        component++)
   {
     vtkm::Float64 value1 =
         vtkm::Float64(Traits1::GetComponent(vector1, component));
     vtkm::Float64 value2 =
         vtkm::Float64(Traits2::GetComponent(vector2, component));
-    if ((fabs(value1) < 2*tolerance) && (fabs(value2) < 2*tolerance))
+    if ((fabs(value1) <= 2*tolerance) && (fabs(value2) <= 2*tolerance))
     {
       continue;
     }
-    vtkm::Float64 ratio = value1/value2;
+    vtkm::Float64 ratio;
+    // The following condition is redundant since the previous check
+    // guarantees neither value will be zero, but the MSVC compiler
+    // sometimes complains about it.
+    if (value2 != 0)
+    {
+      ratio = value1 / value2;
+    }
+    else
+    {
+      ratio = 1.0;
+    }
     if ((ratio > vtkm::Float64(1.0) - tolerance)
         && (ratio < vtkm::Float64(1.0) + tolerance))
     {
@@ -328,29 +346,6 @@ bool test_equal(const vtkm::Pair<T1,T2> &pair1,
       && test_equal(pair1.second, pair2.second, tolerance);
 }
 
-/// Helper function for printing out vectors during testing.
-///
-template<typename T, vtkm::IdComponent Size>
-VTKM_CONT_EXPORT
-std::ostream &operator<<(std::ostream &stream, const vtkm::Vec<T,Size> &vec)
-{
-  stream << "[";
-  for (vtkm::IdComponent component = 0; component < Size-1; component++)
-  {
-    stream << vec[component] << ",";
-  }
-  return stream << vec[Size-1] << "]";
-}
-
-/// Helper function for printing out pairs during testing.
-///
-template<typename T, typename U>
-VTKM_EXEC_CONT_EXPORT
-std::ostream &operator<<(std::ostream &stream, const vtkm::Pair<T,U> &vec)
-{
-  return stream << "[" << vec.first << "," << vec.second << "]";
-}
-
 
 template<typename T>
 VTKM_EXEC_CONT_EXPORT
@@ -384,7 +379,7 @@ vtkm::Vec<T,N> TestValue(vtkm::Id index, vtkm::Vec<T,N>) {
   vtkm::Vec<T,N> value;
   for (vtkm::IdComponent i = 0; i < N; i++)
   {
-    value[i] = TestValue(index, T()) + T(i + 1);
+    value[i] = T(TestValue(index, T()) + T(i + 1));
   }
   return value;
 }

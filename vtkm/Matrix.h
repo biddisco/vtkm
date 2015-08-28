@@ -161,13 +161,13 @@ vtkm::Matrix<T,NumRow,NumCol> MatrixMultiply(
   {
     for (vtkm::IdComponent colIndex = 0; colIndex < NumCol; colIndex++)
     {
-      T sum = leftFactor(rowIndex, 0) * rightFactor(0, colIndex);
+      T sum = T(leftFactor(rowIndex, 0) * rightFactor(0, colIndex));
       for (vtkm::IdComponent internalIndex = 1;
            internalIndex < NumInternal;
            internalIndex++)
       {
-        sum += leftFactor(rowIndex, internalIndex)
-            * rightFactor(internalIndex, colIndex);
+        sum = T(sum + (leftFactor(rowIndex, internalIndex)
+                       * rightFactor(internalIndex, colIndex)));
       }
       result(rowIndex, colIndex) = sum;
     }
@@ -244,6 +244,15 @@ vtkm::Matrix<T,NumCols,NumRows> MatrixTranspose(
   for (vtkm::IdComponent index = 0; index < NumRows; index++)
   {
     vtkm::MatrixSetColumn(result, index, vtkm::MatrixGetRow(matrix, index));
+#ifdef VTKM_ICC
+    // For reasons I do not really understand, the Intel compiler with with
+    // optimization on is sometimes removing this for loop. It appears that the
+    // optimizer sometimes does not recognize that the MatrixSetColumn function
+    // has side effects. I cannot fathom any reason for this other than a bug in
+    // the compiler, but unfortunately I do not know a reliable way to
+    // demonstrate the problem.
+    __asm__("");
+#endif
   }
   return result;
 }
@@ -548,6 +557,12 @@ public:
   typedef T ComponentType;
   static const vtkm::IdComponent NUM_COMPONENTS = NumRow*NumCol;
   typedef vtkm::VecTraitsTagMultipleComponents HasMultipleComponents;
+  typedef vtkm::VecTraitsTagSizeStatic IsSizeStatic;
+
+  VTKM_EXEC_CONT_EXPORT
+  static vtkm::IdComponent GetNumberOfComponents(const MatrixType &) {
+    return NUM_COMPONENTS;
+  }
 
   VTKM_EXEC_CONT_EXPORT
   static const ComponentType &GetComponent(const MatrixType &matrix,

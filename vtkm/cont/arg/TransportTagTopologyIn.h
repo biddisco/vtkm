@@ -22,7 +22,7 @@
 
 #include <vtkm/Types.h>
 
-#include <vtkm/cont/ArrayHandle.h>
+#include <vtkm/cont/CellSet.h>
 
 #include <vtkm/cont/arg/Transport.h>
 
@@ -35,20 +35,28 @@ namespace arg {
 /// \c TransportTagTopologyIn is a tag used with the \c Transport class to
 /// transport topology objects for input data.
 ///
+template<typename FromTopology,typename ToTopology>
 struct TransportTagTopologyIn {  };
 
-template<typename ContObjectType, typename Device>
-struct Transport<vtkm::cont::arg::TransportTagTopologyIn, ContObjectType, Device>
+template<typename FromTopology,
+         typename ToTopology,
+         typename ContObjectType, typename Device>
+struct Transport<vtkm::cont::arg::TransportTagTopologyIn<FromTopology,ToTopology>, ContObjectType, Device>
 {
-  ///\todo: something like VTKM_IS_ARRAY_HANDLE(ContObjectType), but for topology
-  typedef typename ContObjectType::template ExecutionTypes<Device>::ExecObjectType
-      ExecObjectType;
+  VTKM_IS_CELL_SET(ContObjectType);
+
+  typedef typename ContObjectType
+      ::template ExecutionTypes<
+          Device,FromTopology,ToTopology>
+      ::ExecObjectType ExecObjectType;
 
   VTKM_CONT_EXPORT
   ExecObjectType operator()(const ContObjectType &object, vtkm::Id) const
   {
     //create CUDA version of connectivity array.
-    return object.PrepareForInput(Device());
+    return object.PrepareForInput(Device(),
+                                  FromTopology(),
+                                  ToTopology());
   }
 };
 

@@ -20,62 +20,150 @@
 #ifndef vtk_m_cont_CoordinateSystem_h
 #define vtk_m_cont_CoordinateSystem_h
 
-#include <vtkm/Types.h>
-#include <vector>
-#include <string>
-#include <ostream>
+#include <vtkm/cont/ArrayHandleUniformPointCoordinates.h>
+#include <vtkm/cont/Field.h>
+
+#ifndef VTKM_DEFAULT_COORDINATE_SYSTEM_TYPE_LIST_TAG
+#define VTKM_DEFAULT_COORDINATE_SYSTEM_TYPE_LIST_TAG \
+  ::vtkm::TypeListTagFieldVec3
+#endif
+
+#ifndef VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG
+#define VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG \
+  ::vtkm::cont::StorageListTagCoordinateSystemDefault
+#endif
 
 namespace vtkm {
 namespace cont {
 
-class CoordinateSystem
+/// \brief Default storage list for CoordinateSystem arrays.
+///
+/// \c VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG is set to this value
+/// by default (unless it is defined before including VTK-m headers.
+///
+struct StorageListTagCoordinateSystemDefault
+    : vtkm::ListTagJoin<
+        VTKM_DEFAULT_STORAGE_LIST_TAG,
+        vtkm::ListTagBase<vtkm::cont::ArrayHandleUniformPointCoordinates::StorageTag> >
+{ };
+
+typedef vtkm::cont::DynamicArrayHandleBase<
+    VTKM_DEFAULT_COORDINATE_SYSTEM_TYPE_LIST_TAG,
+    VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG>
+  DynamicArrayHandleCoordinateSystem;
+
+class CoordinateSystem : public vtkm::cont::Field
 {
-  public:
-    struct CoordinateAxis
-    {
-        std::string       FieldName;
-        vtkm::IdComponent FieldComponent;
-        CoordinateAxis(const std::string &n,
-                       vtkm::IdComponent c = 0)
-            : FieldName(n), FieldComponent(c)
-        {
-        }
-    };
+  typedef vtkm::cont::Field Superclass;
 
-    CoordinateSystem(std::string nx,
-                     std::string ny,
-                     std::string nz)
-    {
-        axes.push_back(CoordinateAxis(nx));
-        axes.push_back(CoordinateAxis(ny));
-        axes.push_back(CoordinateAxis(nz));
-    }
+public:
+  VTKM_CONT_EXPORT
+  CoordinateSystem(std::string name,
+                   vtkm::IdComponent order,
+                   const vtkm::cont::DynamicArrayHandle &data)
+    : Superclass(name, order, ASSOC_POINTS, data) {  }
 
-    CoordinateSystem(std::string nx,
-                     std::string ny)
-    {
-        axes.push_back(CoordinateAxis(nx));
-        axes.push_back(CoordinateAxis(ny));
-    }
+  template<typename T, typename Storage>
+  VTKM_CONT_EXPORT
+  CoordinateSystem(std::string name,
+                   vtkm::IdComponent order,
+                   const ArrayHandle<T, Storage> &data)
+    : Superclass(name, order, ASSOC_POINTS, data) {  }
 
-    CoordinateSystem(std::string nx)
-    {
-        axes.push_back(CoordinateAxis(nx));
-    }
+  template<typename T>
+  VTKM_CONT_EXPORT
+  CoordinateSystem(std::string name,
+                   vtkm::IdComponent order,
+                   const std::vector<T> &data)
+    : Superclass(name, order, ASSOC_POINTS, data) {  }
 
-    void PrintSummary(std::ostream &out)
-    {
-	out<<"   {";
-	for (std::size_t i = 0; i < axes.size(); i++)
-	{
-	    out<<axes[i].FieldName<<"["<<axes[i].FieldComponent<<"]";
-	    if (i < axes.size()-1) out<<", ";
-	}
-	out<<"}\n";
-    }
+  template<typename T>
+  VTKM_CONT_EXPORT
+  CoordinateSystem(std::string name,
+                   vtkm::IdComponent order,
+                   const T *data,
+                   vtkm::Id numberOfValues)
+    : Superclass(name, order, ASSOC_POINTS, data, numberOfValues) {  }
 
-  private:
-    std::vector<CoordinateAxis> axes;
+  /// This constructor of coordinate system sets up a regular grid of points.
+  ///
+  VTKM_CONT_EXPORT
+  CoordinateSystem(std::string name,
+                   vtkm::IdComponent order,
+                   vtkm::Id3 dimensions,
+                   vtkm::Vec<vtkm::FloatDefault,3> origin
+                     = vtkm::Vec<vtkm::FloatDefault,3>(0.0f, 0.0f, 0.0f),
+                   vtkm::Vec<vtkm::FloatDefault,3> spacing
+                     = vtkm::Vec<vtkm::FloatDefault,3>(1.0f, 1.0f, 1.0f))
+    : Superclass(name,
+                 order,
+                 ASSOC_POINTS,
+                 vtkm::cont::DynamicArrayHandle(
+                   vtkm::cont::ArrayHandleUniformPointCoordinates(dimensions, origin, spacing)))
+  {  }
+
+  VTKM_CONT_EXPORT
+  vtkm::cont::DynamicArrayHandleCoordinateSystem GetData() const
+  {
+    return vtkm::cont::DynamicArrayHandleCoordinateSystem(
+          this->Superclass::GetData());
+  }
+
+  VTKM_CONT_EXPORT
+  vtkm::cont::DynamicArrayHandleCoordinateSystem GetData()
+  {
+    return vtkm::cont::DynamicArrayHandleCoordinateSystem(
+          this->Superclass::GetData());
+  }
+
+  template<typename DeviceAdapterTag, typename TypeList>
+  VTKM_CONT_EXPORT
+  const vtkm::cont::ArrayHandle<vtkm::Float64>& GetBounds(DeviceAdapterTag,
+                                                          TypeList) const
+  {
+    return this->Superclass::GetBounds(
+          DeviceAdapterTag(),
+          TypeList(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG());
+  }
+
+  template<typename DeviceAdapterTag, typename TypeList>
+  VTKM_CONT_EXPORT
+  void GetBounds(vtkm::Float64 *bounds, DeviceAdapterTag, TypeList) const
+  {
+    this->Superclass::GetBounds(
+          bounds, DeviceAdapterTag(),
+          TypeList(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG());
+  }
+
+  template<typename DeviceAdapterTag>
+  VTKM_CONT_EXPORT
+  const vtkm::cont::ArrayHandle<vtkm::Float64>& GetBounds(DeviceAdapterTag) const
+  {
+    return this->Superclass::GetBounds(
+          DeviceAdapterTag(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_TYPE_LIST_TAG(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG());
+  }
+
+  template<typename DeviceAdapterTag>
+  VTKM_CONT_EXPORT
+  void GetBounds(vtkm::Float64 *bounds, DeviceAdapterTag) const
+  {
+    this->Superclass::GetBounds(
+          bounds,
+          DeviceAdapterTag(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_TYPE_LIST_TAG(),
+          VTKM_DEFAULT_COORDINATE_SYSTEM_STORAGE_LIST_TAG());
+  }
+
+  VTKM_CONT_EXPORT
+  virtual void PrintSummary(std::ostream &out) const
+  {
+    out << "    Coordinate System ";
+    this->Superclass::PrintSummary(out);
+  }
 };
 
 } // namespace cont

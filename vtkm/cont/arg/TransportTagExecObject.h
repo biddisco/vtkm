@@ -26,8 +26,10 @@
 
 #include <vtkm/exec/ExecutionObjectBase.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/mpl/assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
 namespace cont {

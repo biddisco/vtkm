@@ -40,9 +40,6 @@ class ArrayPortalCounting
 public:
   typedef CountingValueType ValueType;
 
-  typedef vtkm::cont::internal::IteratorFromArrayPortal<
-          ArrayPortalCounting < ValueType> > IteratorType;
-
   VTKM_EXEC_CONT_EXPORT
   ArrayPortalCounting() :
     StartingValue(),
@@ -77,7 +74,8 @@ public:
 
   VTKM_EXEC_CONT_EXPORT
   ValueType Get(vtkm::Id index) const {
-    return StartingValue + ValueType(static_cast<ComponentType>(index));
+    return ValueType(StartingValue +
+                     ValueType(static_cast<ComponentType>(index)));
   }
 
 private:

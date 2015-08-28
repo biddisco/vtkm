@@ -20,6 +20,42 @@
 #ifndef vtk_m_internal_Configure_h
 #define vtk_m_internal_Configure_h
 
+#ifdef __CUDACC__
+#define VTKM_CUDA
+#endif
+
+#ifdef _OPENMP
+#define VTKM_OPENMP
+#endif
+
+#ifdef _MSC_VER
+#define VTKM_MSVC
+#endif
+
+#ifdef ____clang__
+#define VTKM_CLANG
+#endif
+
+#ifdef __INTEL_COMPILER
+#define VTKM_ICC
+#endif
+
+#ifdef __PGI
+#define VTKM_PGI
+#endif
+
+// Several compilers pretend to be GCC but have minor differences. Try to
+// compensate for that.
+#if defined(__GNUC__) && !defined(VTKM_CLANG) && !defined(VTKM_ICC)
+#define VTKM_GCC
+#endif
+
+#if defined(unix) || defined(__unix) || defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#include <unistd.h>
+# ifdef _POSIX_VERSION
+#  define VTKM_POSIX _POSIX_VERSION
+# endif
+#endif
 
 #if !defined(VTKM_USE_DOUBLE_PRECISION) && !defined(VTKM_NO_DOUBLE_PRECISION)
 #cmakedefine VTKM_USE_DOUBLE_PRECISION
@@ -78,8 +114,26 @@
 # endif
 #endif
 
-#if defined(VTKM_DEVICE_CONFIG_INCLUDE)
-# include VTKM_DEVICE_CONFIG_INCLUDE
+// Define a pair of macros, VTKM_THIRDPARTY_PRE_INCLUDE and VTKM_THIRDPARTY_POST_INCLUDE,
+// that should be wrapped around any #include for a boost or thrust header file. Mostly
+// this is used to set pragmas that dissable warnings that VTK-m checks for
+// but boost and thrust does not.
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#define VTKM_THIRDPARTY_PRE_INCLUDE \
+  _Pragma("GCC diagnostic push") \
+  _Pragma("GCC diagnostic ignored \"-Wconversion\"") \
+  _Pragma("GCC diagnostic ignored \"-Wshadow\"") \
+  _Pragma("GCC diagnostic ignored \"-Wunused-parameter\"")
+#define VTKM_THIRDPARTY_POST_INCLUDE \
+  _Pragma("GCC diagnostic pop")
+#else
+#define VTKM_THIRDPARTY_PRE_INCLUDE
+#define VTKM_THIRDPARTY_POST_INCLUDE
+#endif
+
+//Mark if we are building with interop enabled
+#ifndef VTKm_ENABLE_OPENGL_INTEROP
+#cmakedefine VTKm_ENABLE_OPENGL_INTEROP
 #endif
 
 // Determine whether we will use variadic templates (a new feature in C++11).
@@ -88,17 +142,13 @@
 #if !defined(VTKM_USE_VARIADIC_TEMPLATE) && !defined(VTKM_NO_VARIADIC_TEMPLATE)
 // Currently using Boost to determine support.
 
-# if defined(__GNUC__) || defined(____clang__)
-#   pragma GCC diagnostic push
-#   pragma GCC diagnostic ignored "-Wconversion"
-# endif // gcc || clang
-
+VTKM_THIRDPARTY_PRE_INCLUDE
+#if defined(VTKM_DEVICE_CONFIG_INCLUDE)
+# include VTKM_DEVICE_CONFIG_INCLUDE
+#endif
 # include <boost/config.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
-
-# if defined(__GNUC__) || defined(____clang__)
-#   pragma GCC diagnostic pop
-# endif // gcc || clang
 
 # if defined(BOOST_HAS_VARIADIC_TMPL)
 #  define VTKM_USE_VARIADIC_TEMPLATE 1

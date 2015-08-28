@@ -21,6 +21,7 @@
 #define vtk_m_cont_testing_TestingDeviceAdapter_h
 
 #include <vtkm/TypeTraits.h>
+#include <vtkm/BinaryPredicates.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayHandleCounting.h>
 #include <vtkm/cont/ArrayHandleConstant.h>
@@ -55,50 +56,6 @@ namespace cont {
 namespace testing {
 
 namespace comparison {
-struct SortLess
-{
-  template<typename T>
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T& a, const T& b) const
-  {
-    return a < b;
-  }
-
-  template<typename T, int N>
-  VTKM_EXEC_EXPORT bool operator()(const vtkm::Vec<T,N>& a,
-                                   const vtkm::Vec<T,N>& b) const
-  {
-    const vtkm::IdComponent SIZE = vtkm::VecTraits<T>::NUM_COMPONENTS;
-    bool valid = true;
-    for(vtkm::IdComponent i=0; (i < SIZE) && valid; ++i)
-    {
-      valid = a[i] < b[i];
-    }
-    return valid;
-  }
-};
-
-struct SortGreater
-{
-  template<typename T>
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T& a, const T& b) const
-  {
-    return a > b;
-  }
-
-  template<typename T, int N>
-  VTKM_EXEC_EXPORT bool operator()(const vtkm::Vec<T,N>& a,
-                                   const vtkm::Vec<T,N>& b) const
-  {
-    const vtkm::IdComponent SIZE = vtkm::VecTraits<T>::NUM_COMPONENTS;
-    bool valid = true;
-    for(vtkm::IdComponent i=0; (i < SIZE) && valid; ++i)
-    {
-      valid = a[i] > b[i];
-    }
-    return valid;
-  }
-};
-
 struct MaxValue
 {
   template<typename T>
@@ -294,23 +251,6 @@ public:
 
 private:
 
-  template<typename T>
-  static VTKM_CONT_EXPORT
-  vtkm::cont::ArrayHandle<T, StorageTagBasic>
-  MakeArrayHandle(const T *array, vtkm::Id length)
-  {
-    return vtkm::cont::make_ArrayHandle(array, length);
-  }
-
-  template<typename T>
-  static VTKM_CONT_EXPORT
-  vtkm::cont::ArrayHandle<T, StorageTagBasic>
-  MakeArrayHandle(const std::vector<T>& array)
-  {
-    return vtkm::cont::make_ArrayHandle(array,
-                                        StorageTagBasic());
-  }
-
   static VTKM_CONT_EXPORT void TestDeviceAdapterTag()
   {
     std::cout << "-------------------------------------------" << std::endl;
@@ -401,13 +341,14 @@ private:
     try
     {
       std::cout << "Do array allocation that should fail." << std::endl;
-      vtkm::cont::internal::ArrayManagerExecution<
-          vtkm::Vector4,StorageTagBasic,DeviceAdapterTag>
-          bigManager;
       vtkm::cont::internal::Storage<
-          vtkm::Vector4, StorageTagBasic> supportArray;
+          vtkm::Vec<vtkm::Float32, 4>, StorageTagBasic> supportArray;
+      vtkm::cont::internal::ArrayManagerExecution<
+          vtkm::Vec<vtkm::Float32, 4>, StorageTagBasic, DeviceAdapterTag>
+          bigManager(&supportArray);
+
       const vtkm::Id bigSize = 0x7FFFFFFFFFFFFFFFLL;
-      bigManager.AllocateArrayForOutput(supportArray, bigSize);
+      bigManager.PrepareForOutput(bigSize);
       // It does not seem reasonable to get here.  The previous call should fail.
       VTKM_TEST_FAIL("A ridiculously sized allocation succeeded.  Either there "
                      "was a failure that was not reported but should have been "
@@ -419,7 +360,7 @@ private:
       std::cout << "Got the expected error: " << error.GetMessage() << std::endl;
     }
 #else
-    std::cout << "--------- Skiping out of memory test" << std::endl;
+    std::cout << "--------- Skipping out of memory test" << std::endl;
 #endif
   }
 
@@ -494,6 +435,37 @@ private:
       manager.RetrieveOutputData(&storage);
 
       for (vtkm::Id index = 0; index < ARRAY_SIZE; index++)
+      {
+        vtkm::Id value = storage.GetPortalConst().Get(index);
+        VTKM_TEST_ASSERT(value == index + OFFSET,
+                         "Got bad value for scheduled kernels.");
+      }
+    } //release memory
+
+    std::cout << "-------------------------------------------" << std::endl;
+    std::cout << "Testing Schedule with a vary large Id value" << std::endl;
+
+    {
+      std::cout << "Allocating execution array" << std::endl;
+      IdStorage storage;
+      IdArrayManagerExecution manager(&storage);
+
+      std::cout << "Running clear." << std::endl;
+
+      //size is selected to be larger than the CUDA backend can launch in a
+      //single invocation when compiled for SM_2 support
+      const vtkm::Id size = 8400000;
+      Algorithm::Schedule(ClearArrayKernel(manager.PrepareForOutput(size)),
+                          size);
+
+      std::cout << "Running add." << std::endl;
+      Algorithm::Schedule(AddArrayKernel(manager.PrepareForInPlace(false)),
+                          size);
+
+      std::cout << "Checking results." << std::endl;
+      manager.RetrieveOutputData(&storage);
+
+      for (vtkm::Id index = 0; index < size; index++)
       {
         vtkm::Id value = storage.GetPortalConst().Get(index);
         VTKM_TEST_ASSERT(value == index + OFFSET,
@@ -604,7 +576,7 @@ private:
       testData[i]= OFFSET+(i % 50);
     }
 
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
 
     //make a deep copy of input and place it into temp
     IdArrayHandle temp;
@@ -649,7 +621,7 @@ private:
     randomData[5]=955;  // 3 (lower), 4 (upper)
 
     //change the control structure under the handle
-    input = MakeArrayHandle(randomData, RANDOMDATA_SIZE);
+    input = vtkm::cont::make_ArrayHandle(randomData, RANDOMDATA_SIZE);
     Algorithm::Copy(input,handle);
     VTKM_TEST_ASSERT(handle.GetNumberOfValues() == RANDOMDATA_SIZE,
                      "Handle incorrect size after setting new control data");
@@ -705,7 +677,7 @@ private:
       testData[i]= OFFSET+((ARRAY_SIZE-i) % 50);
     }
 
-    IdArrayHandle unsorted = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle unsorted = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
     IdArrayHandle sorted;
     Algorithm::Copy(unsorted, sorted);
 
@@ -731,14 +703,14 @@ private:
     }
 
     //sort the users memory in-place
-    IdArrayHandle sorted = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle sorted = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
     Algorithm::Sort(sorted);
 
     //copy the sorted array into our own memory, if use the same user ptr
     //we would also sort the 'sorted' handle
     IdArrayHandle comp_sorted;
     Algorithm::Copy(sorted, comp_sorted);
-    Algorithm::Sort(comp_sorted,comparison::SortGreater());
+    Algorithm::Sort(comp_sorted,vtkm::SortGreater());
 
     //Validate that sorted and comp_sorted are sorted in the opposite directions
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
@@ -750,13 +722,13 @@ private:
     }
 
     //validate that sorted and comp_sorted are now equal
-    Algorithm::Sort(comp_sorted,comparison::SortLess());
+    Algorithm::Sort(comp_sorted,vtkm::SortLess());
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
     {
       vtkm::Id sorted1 = sorted.GetPortalConstControl().Get(i);
       vtkm::Id sorted2 = comp_sorted.GetPortalConstControl().Get(i);
       VTKM_TEST_ASSERT(sorted1 == sorted2,
-                       "Got bad sort values when using SortLesser");
+                       "Got bad sort values when using SortLess");
     }
   }
 
@@ -771,7 +743,7 @@ private:
       testData[i]= OFFSET+((ARRAY_SIZE-i) % 50);
     }
 
-    IdArrayHandle unsorted = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle unsorted = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
     IdArrayHandle sorted;
     Algorithm::Copy(unsorted, sorted);
 
@@ -779,7 +751,7 @@ private:
     vtkm::cont::ArrayHandleZip< IdArrayHandle, IdArrayHandle> zipped(unsorted, sorted);
 
     //verify we can use sort with zip handle
-    Algorithm::Sort(zipped, comparison::SortGreater());
+    Algorithm::Sort(zipped, vtkm::SortGreater());
     Algorithm::Sort(zipped);
 
     for (vtkm::Id i = 0; i < ARRAY_SIZE; ++i)
@@ -798,7 +770,7 @@ private:
                                         IdArrayHandle> perm(index, sorted);
 
     //verify we can use a custom operator sort with permutation handle
-    Algorithm::Sort(perm, comparison::SortGreater());
+    Algorithm::Sort(perm, vtkm::SortGreater());
     for (vtkm::Id i = 0; i < ARRAY_SIZE; ++i)
     {
       vtkm::Id sorted_value = perm.GetPortalConstControl().Get(i);
@@ -835,8 +807,8 @@ private:
       testValues[i] = TestValue(i, Vec3());
       }
 
-    IdArrayHandle keys = MakeArrayHandle(testKeys, ARRAY_SIZE);
-    Vec3ArrayHandle values = MakeArrayHandle(testValues, ARRAY_SIZE);
+    IdArrayHandle keys = vtkm::cont::make_ArrayHandle(testKeys, ARRAY_SIZE);
+    Vec3ArrayHandle values = vtkm::cont::make_ArrayHandle(testValues, ARRAY_SIZE);
 
     Algorithm::SortByKey(keys,values);
 
@@ -853,7 +825,7 @@ private:
       }
 
     // this will return everything back to what it was before sorting
-    Algorithm::SortByKey(keys,values,comparison::SortGreater());
+    Algorithm::SortByKey(keys,values,vtkm::SortGreater());
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
       {
       //keys should be sorted from ARRAY_SIZE to 1
@@ -892,7 +864,7 @@ private:
     {
       testData[i]= OFFSET+(i % 50);
     }
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
 
     //make a deep copy of input and place it into temp
     IdArrayHandle temp;
@@ -903,7 +875,7 @@ private:
 
     IdArrayHandle handle;
     //verify lower bounds work
-    Algorithm::LowerBounds(temp,input,handle,comparison::SortLess());
+    Algorithm::LowerBounds(temp,input,handle,vtkm::SortLess());
 
     // Check to make sure that temp was resized correctly during Unique.
     // (This was a discovered bug at one point.)
@@ -930,7 +902,7 @@ private:
     {
       testData[i]= OFFSET+(i % 50);
     }
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
 
     //make a deep copy of input and place it into temp
     IdArrayHandle temp;
@@ -941,7 +913,7 @@ private:
 
     IdArrayHandle handle;
     //verify upper bounds work
-    Algorithm::UpperBounds(temp,input,handle,comparison::SortLess());
+    Algorithm::UpperBounds(temp,input,handle,vtkm::SortLess());
 
     // Check to make sure that temp was resized correctly during Unique.
     // (This was a discovered bug at one point.)
@@ -967,7 +939,7 @@ private:
     {
       testData[i]= OFFSET+(i % 50);
     }
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
     Algorithm::Sort(input);
     Algorithm::Unique(input, FuseAll());
 
@@ -1025,7 +997,7 @@ private:
     }
     testData[ARRAY_SIZE/2] = maxValue;
 
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
     vtkm::Id largestValue = Algorithm::Reduce(input,
                                               vtkm::Id(),
                                               comparison::MaxValue());
@@ -1079,8 +1051,8 @@ private:
                                       6.0f, 7.0f, 8.0f, 9.0f, -2.0f};
     const ValueType expectedSum = 125;
 
-    IdArrayHandle indexHandle = MakeArrayHandle(indexs, indexLength);
-    vtkm::cont::ArrayHandle<ValueType> valueHandle = MakeArrayHandle(values, valuesLength);
+    IdArrayHandle indexHandle = vtkm::cont::make_ArrayHandle(indexs, indexLength);
+    vtkm::cont::ArrayHandle<ValueType> valueHandle = vtkm::cont::make_ArrayHandle(values, valuesLength);
 
     vtkm::cont::ArrayHandlePermutation< IdArrayHandle, vtkm::cont::ArrayHandle<ValueType> > perm;
     perm = vtkm::cont::make_ArrayHandlePermutation(indexHandle, valueHandle);
@@ -1118,8 +1090,8 @@ private:
     vtkm::Id expectedKeys[expectedLength] =   { 0, 1, 4, 0,  2, -1 };
     vtkm::Id expectedValues[expectedLength] = {10, 2, 0, 3, 10, -42};
 
-    IdArrayHandle keys = MakeArrayHandle(inputKeys, inputLength);
-    IdArrayHandle values = MakeArrayHandle(inputValues, inputLength);
+    IdArrayHandle keys = vtkm::cont::make_ArrayHandle(inputKeys, inputLength);
+    IdArrayHandle values = vtkm::cont::make_ArrayHandle(inputValues, inputLength);
 
     IdArrayHandle keysOut, valuesOut;
     Algorithm::ReduceByKey( keys,
@@ -1158,8 +1130,8 @@ private:
     vtkm::Vec<vtkm::Float64, 3> expectedValues[expectedLength];
     expectedValues[0] = vtkm::make_Vec(27.51, 30.59, -33.75);
 
-    IdArrayHandle keys = MakeArrayHandle(inputKeys, inputLength);
-    vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float64, 3>, StorageTag> values = MakeArrayHandle(inputValues, inputLength);
+    IdArrayHandle keys = vtkm::cont::make_ArrayHandle(inputKeys, inputLength);
+    vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float64, 3>, StorageTag> values = vtkm::cont::make_ArrayHandle(inputValues, inputLength);
 
     IdArrayHandle keysOut;
     vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float64, 3>, StorageTag> valuesOut;
@@ -1212,9 +1184,9 @@ private:
     ValueType expectedValues1[expectedLength] = {10.f,10.f,10.f,10.f,10.f,10.f,10.f,10.f,10.f,10.f}; // output values 1
     ValueType expectedValues2[expectedLength] = {3.f,3.f,3.f,3.f,3.f,3.f,3.f,3.f,3.f,3.f}; // output values 2
 
-    IdArrayHandle keys = MakeArrayHandle(inputKeys, inputLength);
+    IdArrayHandle keys = vtkm::cont::make_ArrayHandle(inputKeys, inputLength);
     typedef vtkm::cont::ArrayHandle<ValueType, StorageTag> ValueArrayType;
-    ValueArrayType values1 = MakeArrayHandle(inputValues1, inputLength);
+    ValueArrayType values1 = vtkm::cont::make_ArrayHandle(inputValues1, inputLength);
     typedef vtkm::cont::ArrayHandleConstant<ValueType> ConstValueArrayType;
     ConstValueArrayType constOneArray(1.f, inputLength);
 
@@ -1295,7 +1267,7 @@ private:
     vtkm::Id mid = ARRAY_SIZE/2;
     inputValues[mid] = 0.0;
 
-    vtkm::cont::ArrayHandle<vtkm::Float64> array = MakeArrayHandle(inputValues,
+    vtkm::cont::ArrayHandle<vtkm::Float64> array = vtkm::cont::make_ArrayHandle(inputValues,
                                                                    ARRAY_SIZE);
 
     vtkm::Float64 product = Algorithm::ScanInclusive(array, array,
@@ -1330,7 +1302,7 @@ private:
     {
       testValues[i] = TestValue(i, Vec3());
     }
-    Vec3ArrayHandle values = MakeArrayHandle(testValues, ARRAY_SIZE);
+    Vec3ArrayHandle values = vtkm::cont::make_ArrayHandle(testValues, ARRAY_SIZE);
 
     Vec3 sum = Algorithm::ScanInclusive(values, values);
     std::cout << "Sum that was returned " << sum << std::endl;
@@ -1437,7 +1409,7 @@ private:
     vtkm::Id mid = ARRAY_SIZE/2;
     inputValues[mid] = 0.0;
 
-    vtkm::cont::ArrayHandle<vtkm::Float64> array = MakeArrayHandle(inputValues,
+    vtkm::cont::ArrayHandle<vtkm::Float64> array = vtkm::cont::make_ArrayHandle(inputValues,
                                                                    ARRAY_SIZE);
 
     vtkm::Float64 initialValue = 2.00;
@@ -1477,7 +1449,7 @@ private:
     {
       testValues[i] = TestValue(i, Vec3());
     }
-    Vec3ArrayHandle values = MakeArrayHandle(testValues, ARRAY_SIZE);
+    Vec3ArrayHandle values = vtkm::cont::make_ArrayHandle(testValues, ARRAY_SIZE);
 
     Vec3 sum = Algorithm::ScanExclusive(values, values);
     std::cout << "Sum that was returned " << sum << std::endl;
@@ -1531,7 +1503,7 @@ private:
       testData[i]= OFFSET+(i % 50);
     }
 
-    IdArrayHandle input = MakeArrayHandle(testData, ARRAY_SIZE);
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
 
     //make a deep copy of input and place it into temp
     vtkm::cont::ArrayHandle<vtkm::Float64> temp;

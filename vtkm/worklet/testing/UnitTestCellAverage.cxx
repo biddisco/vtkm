@@ -24,7 +24,9 @@
 #include <vtkm/cont/testing/Testing.h>
 #include <vtkm/cont/testing/MakeTestDataSet.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/shared_ptr.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace {
 
@@ -32,13 +34,8 @@ void TestCellAverageRegular3D()
 {
   std::cout << "Testing CellAverage Worklet on 3D strucutred data" << std::endl;
 
-  vtkm::cont::testing::MakeTestDataSet tds;
-  vtkm::cont::DataSet ds = tds.Make3DRegularDataSet0();
-
-  boost::shared_ptr<vtkm::cont::CellSet> scs = ds.GetCellSet(0);
-  vtkm::cont::CellSetStructured<3> *cs =
-      dynamic_cast<vtkm::cont::CellSetStructured<3> *>(scs.get());
-  VTKM_TEST_ASSERT(cs, "Structured cell set not found");
+  vtkm::cont::testing::MakeTestDataSet testDataSet;
+  vtkm::cont::DataSet dataSet = testDataSet.Make3DRegularDataSet0();
 
   vtkm::cont::Field result("avgvals",
                            1,
@@ -47,8 +44,8 @@ void TestCellAverageRegular3D()
                            vtkm::Float32());
 
   vtkm::worklet::DispatcherMapTopology<vtkm::worklet::CellAverage> dispatcher;
-  dispatcher.Invoke(ds.GetField("nodevar").GetData(),
-                    cs->GetNodeToCellConnectivity(),
+  dispatcher.Invoke(dataSet.GetField("pointvar").GetData(),
+                    dataSet.GetCellSet(),
                     result.GetData());
 
   vtkm::cont::ArrayHandle<vtkm::Float32> resultArrayHandle =
@@ -66,13 +63,8 @@ void TestCellAverageRegular2D()
 {
   std::cout << "Testing CellAverage Worklet on 2D strucutred data" << std::endl;
 
-  vtkm::cont::testing::MakeTestDataSet tds;
-  vtkm::cont::DataSet ds = tds.Make3DExplicitDataSet1();
-
-  boost::shared_ptr<vtkm::cont::CellSet> ecs = ds.GetCellSet(0);
-  vtkm::cont::CellSetExplicit<> *cs =
-      dynamic_cast<vtkm::cont::CellSetExplicit<> *>(ecs.get());
-  VTKM_TEST_ASSERT(cs, "Explicit cell set not found");
+  vtkm::cont::testing::MakeTestDataSet testDataSet;
+  vtkm::cont::DataSet dataSet = testDataSet.Make3DExplicitDataSet1();
 
   vtkm::cont::Field result("avgvals",
                            1,
@@ -81,8 +73,8 @@ void TestCellAverageRegular2D()
                            vtkm::Float32());
 
   vtkm::worklet::DispatcherMapTopology<vtkm::worklet::CellAverage> dispatcher;
-  dispatcher.Invoke(ds.GetField("nodevar").GetData(),
-                    cs->GetNodeToCellConnectivity(),
+  dispatcher.Invoke(dataSet.GetField("pointvar").GetData(),
+                    dataSet.GetCellSet(),
                     result.GetData());
 
   vtkm::cont::ArrayHandle<vtkm::Float32> resultArrayHandle =
@@ -100,13 +92,8 @@ void TestCellAverageExplicit()
 {
   std::cout << "Testing CellAverage Worklet on Explicit data" << std::endl;
 
-  vtkm::cont::testing::MakeTestDataSet tds;
-  vtkm::cont::DataSet ds = tds.Make2DRegularDataSet0();
-
-  boost::shared_ptr<vtkm::cont::CellSet> scs = ds.GetCellSet(0);
-  vtkm::cont::CellSetStructured<2> *cs =
-      dynamic_cast<vtkm::cont::CellSetStructured<2> *>(scs.get());
-  VTKM_TEST_ASSERT(cs, "Structured cell set not found");
+  vtkm::cont::testing::MakeTestDataSet testDataSet;
+  vtkm::cont::DataSet dataSet = testDataSet.Make2DRegularDataSet0();
 
   vtkm::cont::Field result("avgvals",
                            1,
@@ -115,8 +102,8 @@ void TestCellAverageExplicit()
                            vtkm::Float32());
 
   vtkm::worklet::DispatcherMapTopology<vtkm::worklet::CellAverage> dispatcher;
-  dispatcher.Invoke(ds.GetField("nodevar").GetData(),
-                    cs->GetNodeToCellConnectivity(),
+  dispatcher.Invoke(dataSet.GetField("pointvar").GetData(),
+                    dataSet.GetCellSet(),
                     result.GetData());
 
   vtkm::cont::ArrayHandle<vtkm::Float32> resultArrayHandle =

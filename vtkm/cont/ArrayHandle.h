@@ -31,11 +31,13 @@
 #include <vtkm/cont/internal/ArrayHandleExecutionManager.h>
 #include <vtkm/cont/internal/DeviceAdapterTag.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/concept_check.hpp>
 #include <boost/mpl/not.hpp>
 #include <boost/smart_ptr/scoped_ptr.hpp>
 #include <boost/smart_ptr/shared_ptr.hpp>
 #include <boost/type_traits/is_base_of.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 #include <vector>
 #include <iostream>
@@ -70,8 +72,8 @@ struct IsValidArrayHandle {
 };
 
 /// Checks to see if the given object is an array handle. This check is
-/// compatiable with the Boost meta-template programming library (MPL). It
-/// contains a typedef named type that is eitehr boost::mpl::true_ or
+/// compatible with the Boost meta-template programming library (MPL). It
+/// contains a typedef named \c type that is either boost::mpl::true_ or
 /// boost::mpl::false_. Both of these have a typedef named value with the
 /// respective boolean value.
 ///
@@ -523,25 +525,25 @@ make_ArrayHandle(const std::vector<T,Allocator> &array)
   return make_ArrayHandle(&array.front(), static_cast<vtkm::Id>(array.size()));
 }
 
-template<typename T>
+template<typename T, typename StorageT>
 VTKM_CONT_EXPORT
 void
-printSummary_ArrayHandle(const vtkm::cont::ArrayHandle<T> &array,
-			 std::ostream &out)
+printSummary_ArrayHandle(const vtkm::cont::ArrayHandle<T,StorageT> &array,
+                         std::ostream &out)
 {
     vtkm::Id sz = array.GetNumberOfValues();
     out<<"sz= "<<sz<<" [";
     if (sz <= 5)
-	for (vtkm::Id i = 0 ; i < sz; i++)
-	{
-	    out<<array.GetPortalConstControl().Get(i);
-	    if (i != (sz-1)) out<<" ";
-	}
+        for (vtkm::Id i = 0 ; i < sz; i++)
+        {
+            out<<array.GetPortalConstControl().Get(i);
+            if (i != (sz-1)) out<<" ";
+        }
     else
     {
-	out<<array.GetPortalConstControl().Get(0)<<" "<<array.GetPortalConstControl().Get(1);
-	out<<" ... ";
-	out<<array.GetPortalConstControl().Get(sz-2)<<" "<<array.GetPortalConstControl().Get(sz-1);
+        out<<array.GetPortalConstControl().Get(0)<<" "<<array.GetPortalConstControl().Get(1);
+        out<<" ... ";
+        out<<array.GetPortalConstControl().Get(sz-2)<<" "<<array.GetPortalConstControl().Get(sz-1);
     }
     out<<"]";
 }

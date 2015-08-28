@@ -22,8 +22,10 @@
 
 #include <vtkm/Types.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_base_of.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 /// Checks that the argument is a proper \c PointCoordinates class. This is a
 /// handy concept check for functions and classes to make sure that a template

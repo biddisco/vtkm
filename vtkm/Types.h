@@ -24,10 +24,14 @@
 #include <vtkm/internal/Configure.h>
 #include <vtkm/internal/ExportMacros.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
 #include <boost/mpl/or.hpp>
 #include <boost/type_traits/is_floating_point.hpp>
 #include <boost/type_traits/is_signed.hpp>
 #include <boost/utility/enable_if.hpp>
+VTKM_THIRDPARTY_POST_INCLUDE
+
+#include <iostream>
 
 /*!
  * \namespace vtkm
@@ -670,12 +674,22 @@ struct BindRightBinaryOp
   }
 };
 
+// Disable conversion warnings for Add, Subtract, Multiply, Divide on GCC only.
+// GCC creates false positive warnings for signed/unsigned char* operations.
+// This occurs because the values are implicitly casted up to int's for the
+// operation, and than  casted back down to char's when return.
+// This causes a false positive warning, even when the values is within
+// the value types range
+#if defined(VTKM_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif // gcc || clang
 struct Add
 {
   template<typename T>
   VTKM_EXEC_CONT_EXPORT T operator()(const T &a, const T &b) const
   {
-    return a + b;
+    return T(a + b);
   }
 };
 
@@ -684,7 +698,7 @@ struct Subtract
   template<typename T>
   VTKM_EXEC_CONT_EXPORT T operator()(const T &a, const T &b) const
   {
-    return a - b;
+    return T(a - b);
   }
 };
 
@@ -693,7 +707,7 @@ struct Multiply
   template<typename T>
   VTKM_EXEC_CONT_EXPORT T operator()(const T &a, const T &b) const
   {
-    return a * b;
+    return T(a * b);
   }
 };
 
@@ -702,7 +716,7 @@ struct Divide
   template<typename T>
   VTKM_EXEC_CONT_EXPORT T operator()(const T &a, const T &b) const
   {
-    return a / b;
+    return T(a / b);
   }
 };
 
@@ -711,13 +725,20 @@ struct Negate
   template<typename T>
   VTKM_EXEC_CONT_EXPORT T operator()(const T &x) const
   {
-    return -x;
+    return T(-x);
   }
 };
+
+#if defined(VTKM_GCC) || defined(VTKM_CLANG)
+#pragma GCC diagnostic pop
+#endif // gcc || clang
 
 } // namespace internal
 
 //-----------------------------------------------------------------------------
+
+// Pre declaration
+template<typename T, vtkm::IdComponent Size> class Vec;
 
 namespace detail {
 
@@ -750,6 +771,21 @@ protected:
   }
 
 public:
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::IdComponent GetNumberOfComponents() { return NUM_COMPONENTS; }
+
+  template<vtkm::IdComponent OtherSize>
+  VTKM_EXEC_CONT_EXPORT
+  void CopyInto(vtkm::Vec<ComponentType,OtherSize> &dest) const
+  {
+    for (vtkm::IdComponent index = 0;
+         (index < NUM_COMPONENTS) && (index < OtherSize);
+         index++)
+    {
+      dest[index] = (*this)[index];
+    }
+  }
+
   VTKM_EXEC_CONT_EXPORT
   DerivedClass &operator=(const DerivedClass &src)
   {
@@ -1053,10 +1089,10 @@ template<typename T, vtkm::IdComponent Size>
 VTKM_EXEC_CONT_EXPORT
 T dot(const vtkm::Vec<T,Size> &a, const vtkm::Vec<T,Size> &b)
 {
-  T result = a[0]*b[0];
+  T result = T(a[0]*b[0]);
   for (vtkm::IdComponent componentIndex = 1; componentIndex < Size; componentIndex++)
   {
-    result += a[componentIndex]*b[componentIndex];
+    result = T(result + a[componentIndex]*b[componentIndex]);
   }
   return result;
 }
@@ -1065,21 +1101,21 @@ template<typename T>
 VTKM_EXEC_CONT_EXPORT
 T dot(const vtkm::Vec<T,2> &a, const vtkm::Vec<T,2> &b)
 {
-  return (a[0]*b[0]) + (a[1]*b[1]);
+  return T((a[0]*b[0]) + (a[1]*b[1]));
 }
 
 template<typename T>
 VTKM_EXEC_CONT_EXPORT
 T dot(const vtkm::Vec<T,3> &a, const vtkm::Vec<T,3> &b)
 {
-  return (a[0]*b[0]) + (a[1]*b[1]) + (a[2]*b[2]);
+  return T((a[0]*b[0]) + (a[1]*b[1]) + (a[2]*b[2]));
 }
 
 template<typename T>
 VTKM_EXEC_CONT_EXPORT
 T dot(const vtkm::Vec<T,4> &a, const vtkm::Vec<T,4> &b)
 {
-  return (a[0]*b[0]) + (a[1]*b[1]) + (a[2]*b[2]) + (a[3]*b[3]);
+  return T((a[0]*b[0]) + (a[1]*b[1]) + (a[2]*b[2]) + (a[3]*b[3]));
 }
 
 //Integer types of a width less than an integer get implicitly casted to
@@ -1098,18 +1134,6 @@ VTK_M_SCALAR_DOT(vtkm::Int64)
 VTK_M_SCALAR_DOT(vtkm::UInt64)
 VTK_M_SCALAR_DOT(vtkm::Float32)
 VTK_M_SCALAR_DOT(vtkm::Float64)
-
-
-/// Predicate that takes a single argument \c x, and returns
-/// True if it isn't the identity of the Type \p T.
-template<typename T>
-struct not_default_constructor
-{
-  VTKM_EXEC_CONT_EXPORT bool operator()(const T &x) const
-  {
-    return (x  != T());
-  }
-};
 
 } // End of namespace vtkm
 
@@ -1140,6 +1164,20 @@ operator-(const vtkm::Vec<T,Size> &x)
 {
   return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
         x, vtkm::internal::Negate());
+}
+
+/// Helper function for printing out vectors during testing.
+///
+template<typename T, vtkm::IdComponent Size>
+VTKM_CONT_EXPORT
+std::ostream &operator<<(std::ostream &stream, const vtkm::Vec<T,Size> &vec)
+{
+  stream << "[";
+  for (vtkm::IdComponent component = 0; component < Size-1; component++)
+  {
+    stream << vec[component] << ",";
+  }
+  return stream << vec[Size-1] << "]";
 }
 
 #endif //vtk_m_Types_h

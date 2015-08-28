@@ -1,4 +1,4 @@
-##============================================================================
+#============================================================================
 ##  Copyright (c) Kitware, Inc.
 ##  All rights reserved.
 ##  See LICENSE.txt for details.
@@ -20,14 +20,15 @@
 
 set(unit_tests
   UnitTestCellAverage.cxx
+  UnitTestClipping.cxx
+  UnitTestExternalFaces.cxx
   UnitTestPointElevation.cxx
   UnitTestWorkletMapField.cxx
   UnitTestWorkletMapFieldExecArg.cxx
-  UnitTestWorkletMapFieldMultiParam.cxx
   UnitTestWorkletMapTopologyExplicit.cxx
   UnitTestWorkletMapTopologyRegular.cxx
   UnitTestVertexClustering.cxx
-  )
+ )
 
 vtkm_clear_worklet_unit_tests()
 vtkm_save_worklet_unit_tests(SERIAL ${unit_tests})

@@ -22,11 +22,26 @@
 
 #include "vtkm/cont/ArrayHandle.h"
 #include "vtkm/cont/DynamicArrayHandle.h"
-#include "vtkm/cont/DynamicPointCoordinates.h"
+#include "vtkm/cont/DynamicCellSet.h"
 
 #include "vtkm/internal/FunctionInterface.h"
 
 #include "vtkm/cont/testing/Testing.h"
+
+namespace vtkm {
+
+// DynamicArrayHandle requires its value type to have a defined VecTraits
+// class. One of the tests is to use an "unusual" array of std::string
+// (which is pretty pointless but might tease out some assumptions).
+// Make an implementation here. Because I am lazy, this is only a partial
+// implementation.
+template<>
+struct VecTraits<std::string>
+{
+  static const vtkm::IdComponent NUM_COMPONENTS = 1;
+};
+
+} // namespace vtkm
 
 namespace {
 
@@ -64,6 +79,17 @@ struct ArrayHandleStringFunctor {
   }
 };
 
+struct CellSetStructuredFunctor {
+  template<typename T>
+  void operator()(const T &) const {
+    VTKM_TEST_FAIL("Called wrong form of functor operator.");
+  }
+  void operator()(const vtkm::cont::CellSetStructured<3> &) const {
+    std::cout << "    In CellSetStructured<3> functor." << std::endl;
+    g_FunctionCalls++;
+  }
+};
+
 struct FunctionInterfaceFunctor {
   template<typename Signature>
   void operator()(const vtkm::internal::FunctionInterface<Signature> &) const {
@@ -74,7 +100,7 @@ struct FunctionInterfaceFunctor {
         void(vtkm::cont::ArrayHandle<vtkm::FloatDefault>,
              vtkm::cont::ArrayHandle<vtkm::FloatDefault>,
              vtkm::cont::ArrayHandle<std::string>,
-             vtkm::cont::ArrayHandleUniformPointCoordinates)> &) const {
+             vtkm::cont::CellSetStructured<3>)> &) const {
     std::cout << "    In FunctionInterface<...> functor." << std::endl;
     g_FunctionCalls++;
   }
@@ -103,6 +129,18 @@ void TestBasicTransform()
   TRY_TRANSFORM(transform(dynamicArray.ResetTypeList(TypeListTagString()),
                           ArrayHandleStringFunctor(),
                           indexTag));
+
+  std::cout << "  Trying with structured cell set." << std::endl;
+  vtkm::cont::CellSetStructured<3> concreteCellSet;
+  TRY_TRANSFORM(transform(concreteCellSet,
+                          CellSetStructuredFunctor(),
+                          indexTag));
+
+  std::cout << "  Trying with dynamic cell set." << std::endl;
+  vtkm::cont::DynamicCellSet dynamicCellSet = concreteCellSet;
+  TRY_TRANSFORM(transform(dynamicCellSet,
+                          CellSetStructuredFunctor(),
+                          indexTag));
 }
 
 void TestFunctionTransform()
@@ -111,7 +149,7 @@ void TestFunctionTransform()
 
   vtkm::cont::ArrayHandle<vtkm::FloatDefault> scalarArray;
   vtkm::cont::ArrayHandle<std::string> stringArray;
-  vtkm::cont::ArrayHandleUniformPointCoordinates pointCoordinatesArray;
+  vtkm::cont::CellSetStructured<3> structuredCellSet;
 
   std::cout << "  Trying basic functor call w/o transform (make sure it works)."
             << std::endl;
@@ -120,7 +158,7 @@ void TestFunctionTransform()
                     scalarArray,
                     scalarArray,
                     stringArray,
-                    pointCoordinatesArray)));
+                    structuredCellSet)));
 
   std::cout << "  Trying dynamic cast" << std::endl;
   TRY_TRANSFORM(
@@ -128,7 +166,7 @@ void TestFunctionTransform()
           scalarArray,
           vtkm::cont::DynamicArrayHandle(scalarArray),
           vtkm::cont::DynamicArrayHandle(stringArray).ResetTypeList(TypeListTagString()),
-          vtkm::cont::DynamicPointCoordinates(vtkm::cont::PointCoordinatesUniform()))
+          vtkm::cont::DynamicCellSet(structuredCellSet))
         .DynamicTransformCont(vtkm::cont::internal::DynamicTransform(),
                               FunctionInterfaceFunctor()));
 }
