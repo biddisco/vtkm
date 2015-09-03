@@ -1144,8 +1144,17 @@ VTKM_EXEC_CONT_EXPORT
 vtkm::Vec<T, Size> operator*(T scalar, const vtkm::Vec<T, Size> &vec)
 {
   return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
-        vec,
-        vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
+                                                                vec,
+                                                                vtkm::internal::BindLeftBinaryOp<T,vtkm::internal::Multiply>(scalar));
+}
+
+template<typename T1, typename T2, vtkm::IdComponent Size>
+VTKM_EXEC_CONT_EXPORT
+vtkm::Vec<T1, Size> operator*(T2 scalar, const vtkm::Vec<T1, Size> &vec)
+{
+  return vtkm::internal::VecComponentWiseUnaryOperation<Size>()(
+                                                                vec,
+                                                                vtkm::internal::BindLeftBinaryOp<T1,vtkm::internal::Multiply>(scalar));
 }
 
 // The enable_if for this operator is effectively disabling the negate
