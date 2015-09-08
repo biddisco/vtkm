@@ -17,37 +17,43 @@
 //  Laboratory (LANL), the U.S. Government retains certain rights in
 //  this software.
 //============================================================================
-#ifndef vtk_m_CellType_h
-#define vtk_m_CellType_h
+#ifndef vtk_m_cont_cuda_interal_ThrustExecptionHandler_h
+#define vtk_m_cont_cuda_interal_ThrustExecptionHandler_h
+
+#include <vtkm/internal/ExportMacros.h>
+#include <vtkm/cont/ErrorControlOutOfMemory.h>
+#include <vtkm/cont/ErrorExecution.h>
+
+VTKM_THIRDPARTY_PRE_INCLUDE
+#include <thrust/system_error.h>
+VTKM_THIRDPARTY_POST_INCLUDE
 
 namespace vtkm {
-
-/// CellType stores the type of each cell.  Currently these are designed to
-/// match up with VTK cell types.
-///
-enum CellType
+namespace cont {
+namespace cuda {
+namespace internal
 {
-  // Linear cells
-  VTKM_EMPTY_CELL         = 0,
-  VTKM_VERTEX             = 1,
-  //VTKM_POLY_VERTEX      = 2,
-  VTKM_LINE               = 3,
-  //VTKM_POLY_LINE        = 4,
-  VTKM_TRIANGLE           = 5,
-  //VTKM_TRIANGLE_STRIP   = 6,
-  VTKM_POLYGON            = 7,
-  VTKM_PIXEL              = 8,
-  VTKM_QUAD               = 9,
-  VTKM_TETRA              = 10,
-  VTKM_VOXEL              = 11,
-  VTKM_HEXAHEDRON         = 12,
-  VTKM_WEDGE              = 13,
-  VTKM_PYRAMID            = 14,
 
-  VTKM_NUMBER_OF_CELL_TYPES
-};
+static inline void throwAsVTKmException()
+{
+  try
+  {
+    //re-throw the last exception
+    throw;
+  }
+  catch(std::bad_alloc &error)
+  {
+    throw vtkm::cont::ErrorControlOutOfMemory(error.what());
+  }
+  catch(thrust::system_error &error)
+  {
+    throw vtkm::cont::ErrorExecution(error.what());
+  }
+}
 
+}
+}
+}
+}
 
-} // namespace vtkm
-
-#endif //vtk_m_CellType_h
+#endif

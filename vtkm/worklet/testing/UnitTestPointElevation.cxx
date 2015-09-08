@@ -53,13 +53,13 @@ vtkm::cont::DataSet MakePointElevationTestDataSet()
   dataSet.AddCoordinateSystem(
         vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
 
-  vtkm::cont::CellSetExplicit<> cellSet("cells", 3);
+  vtkm::cont::CellSetExplicit<> cellSet(vtkm::Id(coordinates.size()), "cells", 3);
   cellSet.PrepareToAddCells(numCells, numCells * 4);
   for (vtkm::Id j = 0; j < dim - 1; ++j)
   {
     for (vtkm::Id i = 0; i < dim - 1; ++i)
     {
-      cellSet.AddCell(vtkm::VTKM_QUAD,
+      cellSet.AddCell(vtkm::CELL_SHAPE_QUAD,
                       4,
                       vtkm::make_Vec<vtkm::Id>(j * dim + i,
                                                j * dim + i + 1,

@@ -68,11 +68,13 @@ public:
   vtkm::IdComponent GetNumberOfIndices(vtkm::Id index) const {
     return Helper::GetNumberOfIndices(this->Internals, index);
   }
+
   // This needs some thought. What does cell shape mean when the to topology
   // is not a cell?
+  typedef typename InternalsType::CellShapeTag CellShapeTag;
   VTKM_EXEC_EXPORT
-  vtkm::CellType GetCellShape(vtkm::Id=0) const {
-    return Internals.GetCellShape();
+  CellShapeTag GetCellShape(vtkm::Id=0) const {
+    return CellShapeTag();
   }
 
   typedef typename Helper::IndicesType IndicesType;
@@ -81,6 +83,34 @@ public:
   IndicesType GetIndices(vtkm::Id index) const
   {
     return Helper::GetIndices(this->Internals,index);
+  }
+
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::Vec<vtkm::Id,Dimension>
+  FlatToLogicalPointIndex(vtkm::Id flatPointIndex) const
+  {
+    return this->Internals.FlatToLogicalPointIndex(flatPointIndex);
+  }
+
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::Id LogicalToFlatPointIndex(
+      const vtkm::Vec<vtkm::Id,Dimension> &logicalPointIndex) const
+  {
+    return this->Internals.LogicalToFlatPointIndex(logicalPointIndex);
+  }
+
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::Vec<vtkm::Id,Dimension>
+  FlatToLogicalCellIndex(vtkm::Id flatCellIndex) const
+  {
+    return this->Internals.FlatToLogicalCellIndex(flatCellIndex);
+  }
+
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::Id LogicalToFlatCellIndex(
+      const vtkm::Vec<vtkm::Id,Dimension> &logicalCellIndex) const
+  {
+    return this->Internals.LogicalToFlatCellIndex(logicalCellIndex);
   }
 
 private:

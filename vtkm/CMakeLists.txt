@@ -23,7 +23,8 @@ include_directories(${Boost_INCLUDE_DIRS})
 set(headers
   BinaryPredicates.h
   BinaryOperators.h
-  CellType.h
+  CellShape.h
+  CellTraits.h
   Extent.h
   ListTag.h
   Math.h
@@ -34,6 +35,7 @@ set(headers
   Types.h
   TypeTraits.h
   VectorAnalysis.h
+  VecRectilinearPointCoordinates.h
   VecTraits.h
   VecVariable.h
   UnaryPredicates.h
