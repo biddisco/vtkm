@@ -112,7 +112,7 @@ void OutputArrayDebug(const PointVecPermType &outputArray, const std::string &na
 template<typename I, typename T, int S>
 void OutputArrayDebug(const vtkm::cont::ArrayHandlePermutation<I, vtkm::cont::ArrayHandle<vtkm::Vec<T, S> > > &outputArray, const std::string &name)
 {
-  typedef vtkm::cont::ArrayHandlePermutation<I, vtkm::cont::ArrayHandle<vtkm::Vec<T, S> > >::PortalConstControl PortalConstType;
+  typedef typename vtkm::cont::ArrayHandlePermutation<I, vtkm::cont::ArrayHandle<vtkm::Vec<T, S> > >::PortalConstControl PortalConstType;
   PortalConstType readPortal = outputArray.GetPortalConstControl();
   vtkm::cont::ArrayPortalToIterators<PortalConstType> iterators(readPortal);
   std::cout << name.c_str() << " " << outputArray.GetNumberOfValues() << "\n";
