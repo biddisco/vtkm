@@ -608,6 +608,7 @@ namespace vtkm { namespace worklet
           vtkm::exec::ExecutionWholeArray<vtkm::Float32>(scalarSplatOutput),
           dummy);
         END_TIMER_BLOCK(UpdateVoxelSplats)
+        OutputArrayDebug(scalarSplatOutput, "scalarSplatOutput");
 
         uniqueVoxelIds.ReleaseResources();
         voxelSplatSums.ReleaseResources();
