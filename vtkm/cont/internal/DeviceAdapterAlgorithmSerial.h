@@ -436,6 +436,40 @@ public:
 
 };
 
+/// Serial atomic implementation
+///
+template<typename T>
+class DeviceAdapterAtomicArrayImplementation<T, vtkm::cont::DeviceAdapterTagSerial>
+{
+public:
+  VTKM_CONT_EXPORT
+    DeviceAdapterAtomicArrayImplementation(
+      vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic> handle) :
+    Portal(handle.PrepareForInPlace(vtkm::cont::DeviceAdapterTagSerial()))
+  {
+  }
+
+  VTKM_EXEC_EXPORT
+    T Add(vtkm::Id index, const T& value) const
+  {
+    T temp = *(this->Portal.GetIteratorBegin() + index) + value;
+    *(this->Portal.GetIteratorBegin() + index) = temp;
+    return temp;
+  }
+
+  VTKM_EXEC_EXPORT
+    T Exchange(vtkm::Id index, const T& value) const
+  {
+    T temp = *(this->Portal.GetIteratorBegin() + index);
+    *(this->Portal.GetIteratorBegin() + index) = value;
+    return temp;
+  }
+
+private:
+  typedef typename vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic>
+    ::template ExecutionTypes<vtkm::cont::DeviceAdapterTagSerial>::Portal PortalType;
+  PortalType Portal;
+};
 
 }
 } // namespace vtkm::cont
