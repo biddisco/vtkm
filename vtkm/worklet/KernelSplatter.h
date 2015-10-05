@@ -47,7 +47,7 @@
 //----------------------------------------------------------------------------
 // Macros for timing
 //----------------------------------------------------------------------------
-#ifdef __VTKM_GAUSSIAN_SPLATTER_BENCHMARK
+#if defined(__VTKM_GAUSSIAN_SPLATTER_BENCHMARK) && !defined(START_TIMER_BLOCK)
 // start timer
 # define START_TIMER_BLOCK(name) \
     vtkm::cont::Timer<DeviceAdapter> timer_##name;
@@ -376,7 +376,7 @@ struct KernelSplatterFilterUniformGrid
     //-----------------------------------------------------------------------
     // Run the filter, given the input params
     //-----------------------------------------------------------------------
-    template <typename StorageT, typename StorageU>
+    template <typename StorageT>
     void run(
             const vtkm::cont::ArrayHandle<vtkm::Float64, StorageT> xValues,
             const vtkm::cont::ArrayHandle<vtkm::Float64, StorageT> yValues,
@@ -450,7 +450,7 @@ struct KernelSplatterFilterUniformGrid
         // the five entries in the lookup array would be 0,0,0,0,0
         //---------------------------------------------------------------
         IdHandleType neighbor2SplatId;
-        IdCountingType countingArray(vtkm::Id(0), vtkm::Id(totalSplatSize));
+        IdCountingType countingArray(vtkm::Id(0), 1, vtkm::Id(totalSplatSize));
         START_TIMER_BLOCK(Upper_bounds)
         vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::UpperBounds(
                 numNeighborsPrefixSum,
@@ -569,7 +569,7 @@ struct KernelSplatterFilterUniformGrid
         //---------------------------------------------------------------
         // initialize each field value to zero to begin with
         //---------------------------------------------------------------
-        IdCountingType indexArray(vtkm::Id(0), numVolumePoints);
+        IdCountingType indexArray(vtkm::Id(0), 1, numVolumePoints);
         vtkm::worklet::DispatcherMapField<zero_voxel> zeroDispatcher;
         zeroDispatcher.Invoke(indexArray, scalarSplatOutput);
         //
