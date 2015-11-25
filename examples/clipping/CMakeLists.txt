@@ -20,12 +20,8 @@
 ##
 ##=============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
-
-
 add_executable(Clipping_SERIAL Clipping.cxx)
-#target_include_directories(Clipping_SERIAL "")
-#target_link_libraries(Clipping_SERIAL "")
+
 set_property(
   TARGET Clipping_SERIAL
   APPEND
@@ -42,13 +38,12 @@ if(VTKm_Cuda_FOUND)
 
   set(CUDA_NVCC_FLAGS ${old_nvcc_flags})
 
-  #target_link_libraries(Clipping_CUDA "")
 endif()
 
 if(VTKm_ENABLE_TBB)
   add_executable(Clipping_TBB Clipping.cxx)
-  target_include_directories(Clipping_TBB PRIVATE ${TBB_INCLUDE_DIRS})
-  target_link_libraries(Clipping_TBB ${TBB_LIBRARIES})
+  target_include_directories(Clipping_TBB PRIVATE ${VTKm_INCLUDE_DIRS})
+  target_link_libraries(Clipping_TBB ${VTKm_LIBRARIES})
   set_property(
     TARGET Clipping_TBB
     APPEND

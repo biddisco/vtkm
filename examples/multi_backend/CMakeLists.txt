@@ -20,8 +20,6 @@
 ##
 ##=============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
-
 if(VTKm_Cuda_FOUND)
   cuda_add_executable(MultiBackend MultiBackend.cu)
 else()
@@ -29,5 +27,5 @@ else()
 endif()
 
 if(VTKm_TBB_FOUND)
-   target_link_libraries(MultiBackend ${TBB_LIBRARIES})
+   target_link_libraries(MultiBackend  ${VTKm_LIBRARIES})
 endif()
