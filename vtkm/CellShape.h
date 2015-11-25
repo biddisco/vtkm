@@ -20,10 +20,10 @@
 #ifndef vtk_m_CellShape_h
 #define vtk_m_CellShape_h
 
+#include <vtkm/StaticAssert.h>
 #include <vtkm/Types.h>
 
 VTKM_THIRDPARTY_PRE_INCLUDE
-#include <boost/static_assert.hpp>
 #include <boost/type_traits/integral_constant.hpp>
 VTKM_THIRDPARTY_POST_INCLUDE
 
@@ -43,10 +43,10 @@ enum CellShapeIdEnum
   CELL_SHAPE_TRIANGLE           = 5,
   //CELL_SHAPE_TRIANGLE_STRIP   = 6,
   CELL_SHAPE_POLYGON            = 7,
-  //CELL_SHAPE_PIXEL              = 8,
+  //CELL_SHAPE_PIXEL            = 8,
   CELL_SHAPE_QUAD               = 9,
   CELL_SHAPE_TETRA              = 10,
-  //CELL_SHAPE_VOXEL              = 11,
+  //CELL_SHAPE_VOXEL            = 11,
   CELL_SHAPE_HEXAHEDRON         = 12,
   CELL_SHAPE_WEDGE              = 13,
   CELL_SHAPE_PYRAMID            = 14,
@@ -75,7 +75,7 @@ struct CellShapeTagCheck : boost::false_type {  };
 /// tag.
 ///
 #define VTKM_IS_CELL_SHAPE_TAG(tag) \
-  BOOST_STATIC_ASSERT_MSG( \
+  VTKM_STATIC_ASSERT_MSG( \
     ::vtkm::internal::CellShapeTagCheck<tag>::value, \
     "Provided type is not a valid VTK-m cell shape tag.")
 
@@ -141,7 +141,7 @@ struct CellShapeTagGeneric {
   VTKM_EXEC_CONT_EXPORT
   CellShapeTagGeneric(vtkm::IdComponent shape) : Id(shape) {  }
 
-  const vtkm::IdComponent Id;
+  vtkm::IdComponent Id;
 };
 
 
@@ -149,7 +149,7 @@ struct CellShapeTagGeneric {
   case vtkm::cellShapeId: \
     { \
       typedef \
-        typename vtkm::CellShapeIdToTag<vtkm::cellShapeId>::Tag CellShapeTag; \
+        vtkm::CellShapeIdToTag<vtkm::cellShapeId>::Tag CellShapeTag; \
       call; \
     } \
     break

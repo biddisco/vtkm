@@ -21,7 +21,7 @@
 #define vtk_m_cont_cuda_internal_ArrayManagerExecutionThrustDevice_h
 
 #include <vtkm/cont/ArrayPortalToIterators.h>
-#include <vtkm/cont/ErrorControlOutOfMemory.h>
+#include <vtkm/cont/ErrorControlBadAllocation.h>
 #include <vtkm/cont/Storage.h>
 
 // Disable warnings we check vtkm for but Thrust does not.
@@ -52,7 +52,7 @@ template<typename T>
   // note that construct is annotated as
   // a __host__ __device__ function
   __host__ __device__
-  void construct(T *p)
+  void construct(T * vtkmNotUsed(p) )
   {
     // no-op
   }
@@ -74,7 +74,7 @@ public:
   typedef vtkm::cont::internal::Storage<ValueType, StorageTag> StorageType;
 
   typedef vtkm::exec::cuda::internal::ArrayPortalFromThrust< T > PortalType;
-  typedef vtkm::exec::cuda::internal::ConstArrayPortalFromThrust< const T > PortalConstType;
+  typedef vtkm::exec::cuda::internal::ConstArrayPortalFromThrust< T > PortalConstType;
 
   VTKM_CONT_EXPORT
   ArrayManagerExecutionThrustDevice(StorageType *storage)
@@ -116,6 +116,14 @@ public:
                            this->Array.data() + static_cast<difference_type>(this->Array.size()));
   }
 
+  /// Workaround for nvcc 7.5 compiler warning bug.
+  template<typename DummyType>
+  VTKM_CONT_EXPORT
+  PortalConstType _PrepareForInput(bool updateData)
+  {
+      return this->PrepareForInput(updateData);
+  }
+
   /// Allocates the appropriate size of the array and copies the given data
   /// into the array.
   ///
@@ -133,6 +141,14 @@ public:
 
     return PortalType(this->Array.data(),
                       this->Array.data() + static_cast<difference_type>(this->Array.size()));
+  }
+
+  /// Workaround for nvcc 7.5 compiler warning bug.
+  template<typename DummyType>
+  VTKM_CONT_EXPORT
+  PortalType _PrepareForInPlace(bool updateData)
+  {
+    return this->PrepareForInPlace(updateData);
   }
 
   /// Allocates the array to the given size.
@@ -153,11 +169,19 @@ public:
       }
     catch (std::bad_alloc error)
       {
-      throw vtkm::cont::ErrorControlOutOfMemory(error.what());
+      throw vtkm::cont::ErrorControlBadAllocation(error.what());
       }
 
     return PortalType(this->Array.data(),
                       this->Array.data() + static_cast<difference_type>(this->Array.size()));
+  }
+
+  /// Workaround for nvcc 7.5 compiler warning bug.
+  template<typename DummyType>
+  VTKM_CONT_EXPORT
+  PortalType _PrepareForOutput(vtkm::Id numberOfValues)
+  {
+    return this->PrepareForOutput(numberOfValues);
   }
 
   /// Allocates enough space in \c storage and copies the data in the
@@ -178,6 +202,19 @@ public:
     {
       vtkm::cont::cuda::internal::throwAsVTKmException();
     }
+  }
+
+  /// Copies the data currently in the device array into the given iterators.
+  /// Although the iterator is supposed to be from the control environment,
+  /// thrust can generally handle iterators for a device as well.
+  ///
+  template <class IteratorTypeControl>
+  VTKM_CONT_EXPORT void CopyInto(IteratorTypeControl dest) const
+  {
+    ::thrust::copy(
+          this->Array.data(),
+          this->Array.data() + static_cast<difference_type>(this->Array.size()),
+          dest);
   }
 
   /// Resizes the device vector.

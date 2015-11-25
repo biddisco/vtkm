@@ -23,12 +23,12 @@
 #include <vtkm/TypeTraits.h>
 #include <vtkm/BinaryPredicates.h>
 #include <vtkm/cont/ArrayHandle.h>
-#include <vtkm/cont/ArrayHandleCounting.h>
 #include <vtkm/cont/ArrayHandleConstant.h>
+#include <vtkm/cont/ArrayHandleIndex.h>
 #include <vtkm/cont/ArrayHandlePermutation.h>
 #include <vtkm/cont/ArrayHandleZip.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
-#include <vtkm/cont/ErrorControlOutOfMemory.h>
+#include <vtkm/cont/ErrorControlBadAllocation.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/StorageBasic.h>
 #include <vtkm/cont/Timer.h>
@@ -129,17 +129,30 @@ public:
   struct ClearArrayKernel
   {
     VTKM_CONT_EXPORT
-    ClearArrayKernel(const IdPortalType &array) : Array(array) {  }
+    ClearArrayKernel(const IdPortalType &array) : Array(array), Dims() {  }
+
+    VTKM_CONT_EXPORT
+    ClearArrayKernel(const IdPortalType &array,
+                     const vtkm::Id3& dims) : Array(array), Dims(dims) {  }
 
     VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
     {
       this->Array.Set(index, OFFSET);
     }
 
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id3 index) const
+    {
+      //convert from id3 to id
+      vtkm::Id flatIndex =
+                  index[0]+ this->Dims[0]*(index[1]+ this->Dims[1]*index[2]);
+      this->operator()(flatIndex);
+    }
+
     VTKM_CONT_EXPORT void SetErrorMessageBuffer(
         const vtkm::exec::internal::ErrorMessageBuffer &) {  }
 
     IdPortalType Array;
+    vtkm::Id3 Dims;
   };
 
   struct ClearArrayMapKernel //: public vtkm::exec::WorkletMapField
@@ -158,17 +171,31 @@ public:
   struct AddArrayKernel
   {
     VTKM_CONT_EXPORT
-    AddArrayKernel(const IdPortalType &array) : Array(array) {  }
+    AddArrayKernel(const IdPortalType &array) : Array(array), Dims() {  }
+
+    VTKM_CONT_EXPORT
+    AddArrayKernel(const IdPortalType &array,
+                     const vtkm::Id3& dims) : Array(array), Dims(dims) {  }
+
 
     VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
     {
       this->Array.Set(index, this->Array.Get(index) + index);
     }
 
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id3 index) const
+    {
+      //convert from id3 to id
+      vtkm::Id flatIndex =
+                  index[0]+ this->Dims[0]*(index[1]+ this->Dims[1]*index[2]);
+      this->operator()(flatIndex);
+    }
+
     VTKM_CONT_EXPORT void SetErrorMessageBuffer(
         const vtkm::exec::internal::ErrorMessageBuffer &) {  }
 
     IdPortalType Array;
+    vtkm::Id3 Dims;
   };
 
   struct OneErrorKernel
@@ -355,7 +382,7 @@ private:
                      "or the width of vtkm::Id is not large enough to express all "
                      "array sizes.");
     }
-    catch (vtkm::cont::ErrorControlOutOfMemory error)
+    catch (vtkm::cont::ErrorControlBadAllocation error)
     {
       std::cout << "Got the expected error: " << error.GetMessage() << std::endl;
     }
@@ -486,11 +513,11 @@ private:
       std::cout << "Running clear." << std::endl;
       Algorithm::Schedule(
             ClearArrayKernel(manager.PrepareForOutput(
-                               DIM_SIZE * DIM_SIZE * DIM_SIZE)),
+                               DIM_SIZE * DIM_SIZE * DIM_SIZE), maxRange),
             maxRange);
 
       std::cout << "Running add." << std::endl;
-      Algorithm::Schedule(AddArrayKernel(manager.PrepareForInPlace(false)),
+      Algorithm::Schedule(AddArrayKernel(manager.PrepareForInPlace(false), maxRange),
                           maxRange);
 
       std::cout << "Checking results." << std::endl;
@@ -765,8 +792,8 @@ private:
     std::cout << "Sort of a ArrayHandlePermutation" << std::endl;
 
     //verify that we can use ArrayHandlePermutation inplace
-    vtkm::cont::ArrayHandleCounting< vtkm::Id > index(0, ARRAY_SIZE);
-    vtkm::cont::ArrayHandlePermutation< vtkm::cont::ArrayHandleCounting< vtkm::Id >,
+    vtkm::cont::ArrayHandleIndex index(ARRAY_SIZE);
+    vtkm::cont::ArrayHandlePermutation< vtkm::cont::ArrayHandleIndex,
                                         IdArrayHandle> perm(index, sorted);
 
     //verify we can use a custom operator sort with permutation handle

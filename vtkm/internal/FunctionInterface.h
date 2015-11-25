@@ -80,6 +80,7 @@ void SetParameter(ParameterContainer<FunctionSignature> &parameters,
 
 template<vtkm::IdComponent NumToCopy, vtkm::IdComponent ParameterIndex = 1>
 struct FunctionInterfaceCopyParameters {
+  VTKM_SUPPRESS_EXEC_WARNINGS
   template<typename DestSignature, typename SrcSignature>
   static
   VTKM_EXEC_CONT_EXPORT
@@ -257,6 +258,14 @@ class FunctionInterface
 
 public:
   typedef FunctionSignature Signature;
+
+  VTKM_SUPPRESS_EXEC_WARNINGS
+  FunctionInterface():
+    Result(),
+    Parameters()
+  {
+
+  }
 
   // the number of parameters as a boost mpl integral constant
   typedef boost::function_types::function_arity<FunctionSignature> SignatureArity;

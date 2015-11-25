@@ -25,14 +25,24 @@
 #include <vtkm/worklet/internal/ClipTables.h>
 
 #include <vtkm/cont/CellSetExplicit.h>
+#include <vtkm/cont/CoordinateSystem.h>
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
 #include <vtkm/cont/DynamicArrayHandle.h>
 #include <vtkm/cont/DynamicCellSet.h>
+#include <vtkm/cont/Timer.h>
+#include <vtkm/ImplicitFunctions.h>
 
 #include <vtkm/exec/ExecutionWholeArray.h>
 #include <vtkm/exec/FunctorBase.h>
 
-#define COMBINE_LOWERBOUND_AMEND 0
+#if defined(THRUST_MAJOR_VERSION) && THRUST_MAJOR_VERSION == 1 && \
+    THRUST_MINOR_VERSION == 8 && THRUST_SUBMINOR_VERSION < 3
+// Workaround a bug in thrust 1.8.0 - 1.8.2 scan implementations which produces
+// wrong results
+#include <thrust/detail/type_traits.h>
+#define THRUST_SCAN_WORKAROUND
+#endif
+
 
 namespace vtkm {
 namespace worklet {
@@ -93,11 +103,31 @@ void swap(T &v1, T &v2)
   v2 = temp;
 }
 
+template <typename T>
+VTKM_EXEC_CONT_EXPORT
+T Scale(const T &val, vtkm::Float64 scale)
+{
+  return static_cast<T>(scale * static_cast<vtkm::Float64>(val));
+}
+
+template <typename T, vtkm::IdComponent NumComponents>
+VTKM_EXEC_CONT_EXPORT
+vtkm::Vec<T, NumComponents> Scale(const vtkm::Vec<T, NumComponents> &val,
+                                  vtkm::Float64 scale)
+{
+  return val * scale;
+}
 
 template <typename DeviceAdapter>
 class ExecutionConnectivityExplicit : vtkm::exec::ExecutionObjectBase
 {
 private:
+  typedef typename vtkm::cont::ArrayHandle<vtkm::UInt8>
+      ::template ExecutionTypes<DeviceAdapter>::Portal UInt8Portal;
+
+  typedef typename vtkm::cont::ArrayHandle<vtkm::IdComponent>
+      ::template ExecutionTypes<DeviceAdapter>::Portal IdComponentPortal;
+
   typedef typename vtkm::cont::ArrayHandle<vtkm::Id>
       ::template ExecutionTypes<DeviceAdapter>::Portal IdPortal;
 
@@ -109,8 +139,8 @@ public:
   }
 
   VTKM_CONT_EXPORT
-  ExecutionConnectivityExplicit(const IdPortal &shapes,
-                                const IdPortal &numIndices,
+  ExecutionConnectivityExplicit(const UInt8Portal &shapes,
+                                const IdComponentPortal &numIndices,
                                 const IdPortal &connectivity,
                                 const IdPortal &indexOffsets)
     : Shapes(shapes),
@@ -121,13 +151,13 @@ public:
   }
 
   VTKM_EXEC_EXPORT
-  void SetCellShape(vtkm::Id cellIndex, vtkm::Id shape)
+  void SetCellShape(vtkm::Id cellIndex, vtkm::UInt8 shape)
   {
     this->Shapes.Set(cellIndex, shape);
   }
 
   VTKM_EXEC_EXPORT
-  void SetNumberOfIndices(vtkm::Id cellIndex, vtkm::Id numIndices)
+  void SetNumberOfIndices(vtkm::Id cellIndex, vtkm::IdComponent numIndices)
   {
     this->NumIndices.Set(cellIndex, numIndices);
   }
@@ -145,8 +175,8 @@ public:
   }
 
 private:
-  IdPortal Shapes;
-  IdPortal NumIndices;
+  UInt8Portal Shapes;
+  IdComponentPortal NumIndices;
   IdPortal Connectivity;
   IdPortal IndexOffsets;
 };
@@ -161,15 +191,18 @@ struct ClipStats
   vtkm::Id NumberOfIndices;
   vtkm::Id NumberOfNewPoints;
 
-  VTKM_EXEC_CONT_EXPORT
-  ClipStats operator+(const ClipStats &cs) const
+  struct SumOp
   {
-    ClipStats sum;
-    sum.NumberOfCells = this->NumberOfCells + cs.NumberOfCells;
-    sum.NumberOfIndices = this->NumberOfIndices + cs.NumberOfIndices;
-    sum.NumberOfNewPoints = this->NumberOfNewPoints + cs.NumberOfNewPoints;
-    return sum;
-  }
+    VTKM_EXEC_CONT_EXPORT
+    ClipStats operator()(const ClipStats &cs1, const ClipStats &cs2) const
+    {
+      ClipStats sum = cs1;
+      sum.NumberOfCells += cs2.NumberOfCells;
+      sum.NumberOfIndices += cs2.NumberOfIndices;
+      sum.NumberOfNewPoints += cs2.NumberOfNewPoints;
+      return sum;
+    }
+  };
 };
 
 struct EdgeInterpolation
@@ -238,13 +271,13 @@ public:
   struct TypeClipStats : vtkm::ListTagBase<ClipStats> { };
 
 
-  class ComputeStats : public vtkm::worklet::WorkletMapTopologyPointToCell
+  class ComputeStats : public vtkm::worklet::WorkletMapPointToCell
   {
   public:
     typedef void ControlSignature(TopologyIn topology,
-                                  FieldInFrom<Scalar> scalars,
-                                  FieldOut<IdType> clipTableIdxs,
-                                  FieldOut<TypeClipStats> stats);
+                                  FieldInPoint<ScalarAll> scalars,
+                                  FieldOutCell<IdType> clipTableIdxs,
+                                  FieldOutCell<TypeClipStats> stats);
     typedef void ExecutionSignature(_2, CellShape, FromCount, _3, _4);
 
     VTKM_CONT_EXPORT
@@ -299,13 +332,13 @@ public:
   };
 
 
-  class GenerateCellSet : public vtkm::worklet::WorkletMapTopologyPointToCell
+  class GenerateCellSet : public vtkm::worklet::WorkletMapPointToCell
   {
   public:
     typedef void ControlSignature(TopologyIn topology,
-                                  FieldInFrom<Scalar> scalars,
-                                  FieldInTo<IdType> clipTableIdxs,
-                                  FieldInTo<TypeClipStats> cellSetIdxs,
+                                  FieldInPoint<ScalarAll> scalars,
+                                  FieldInCell<IdType> clipTableIdxs,
+                                  FieldInCell<TypeClipStats> cellSetIdxs,
                                   ExecObject connectivityExplicit,
                                   ExecObject interpolation,
                                   ExecObject newPointsConnectivityReverseMap);
@@ -347,7 +380,7 @@ public:
       for (vtkm::Id cell = 0; cell < numberOfCells; ++cell, ++cellIdx)
       {
         connectivityExplicit.SetCellShape(cellIdx, this->ClipTables.ValueAt(idx++));
-        vtkm::Id numPoints = this->ClipTables.ValueAt(idx++);
+        vtkm::IdComponent numPoints = this->ClipTables.ValueAt(idx++);
         connectivityExplicit.SetNumberOfIndices(cellIdx, numPoints);
         connectivityExplicit.SetIndexOffset(cellIdx, connectivityIdx);
 
@@ -362,7 +395,7 @@ public:
           }
           else // edge, new point to be generated by cutting the egde
           {
-            vtkm::Vec<vtkm::IdComponent, 2> edge =
+            internal::ClipTables::EdgeVec edge =
                 this->ClipTables.GetEdge(shape.Id, entry);
 
             EdgeInterpolation ei;
@@ -389,8 +422,11 @@ public:
     ClipTablesPortal ClipTables;
   };
 
-// TODO: Profile and choose the better performing implementation
-#if defined(COMBINE_LOWERBOUND_AMEND)
+
+// The following can be done using DeviceAdapterAlgorithm::LowerBounds followed by
+// a worklet for updating connectivity. We are going with a custom worklet, that
+// combines lower-bounds computation and connectivity update, because this is
+// currently faster and uses less memory.
   class AmendConnectivity : public vtkm::exec::FunctorBase
   {
   public:
@@ -424,7 +460,7 @@ public:
         if (lt(this->UniqueNewPoints.Get(mid), current))
         {
           first = ++mid;
-          count = step - 1;
+          count -= step + 1;
         }
         else
         {
@@ -444,37 +480,138 @@ public:
     IdPortal Connectivity;
   };
 
-#else
-  class AmendConnectivity : public vtkm::exec::FunctorBase
+
+
+  Clip()
+    : ClipTablesInstance(), NewPointsInterpolation(), NewPointsOffset()
+  {
+  }
+
+  template <typename ScalarsArrayHandle>
+  vtkm::cont::CellSetExplicit<> Run(const vtkm::cont::DynamicCellSet &cellSet,
+                                    const ScalarsArrayHandle &scalars,
+                                    vtkm::Float64 value)
+  {
+    DeviceAdapter device;
+    ClipTablesPortal clipTablesDevicePortal =
+        this->ClipTablesInstance.GetDevicePortal(device);
+
+
+    // Step 1. compute counts for the elements of the cell set data structure
+    vtkm::cont::ArrayHandle<vtkm::Id> clipTableIdxs;
+    vtkm::cont::ArrayHandle<ClipStats> stats;
+
+    ComputeStats computeStats(value, clipTablesDevicePortal);
+    DispatcherMapTopology<ComputeStats>(computeStats).Invoke(cellSet, scalars,
+       clipTableIdxs, stats);
+
+    // compute offsets for each invocation
+    ClipStats zero = { 0, 0, 0 };
+    vtkm::cont::ArrayHandle<ClipStats> cellSetIndices;
+    ClipStats total = Algorithm::ScanExclusive(stats, cellSetIndices,
+        ClipStats::SumOp(), zero);
+    stats.ReleaseResources();
+
+
+    // Step 2. generate the output cell set
+    vtkm::cont::ArrayHandle<vtkm::UInt8> shapes;
+    vtkm::cont::ArrayHandle<vtkm::IdComponent> numIndices;
+    vtkm::cont::ArrayHandle<vtkm::Id> connectivity;
+    vtkm::cont::ArrayHandle<vtkm::Id> cellToConnectivityMap;
+    internal::ExecutionConnectivityExplicit<DeviceAdapter> outConnectivity(
+        shapes.PrepareForOutput(total.NumberOfCells, device),
+        numIndices.PrepareForOutput(total.NumberOfCells, device),
+        connectivity.PrepareForOutput(total.NumberOfIndices, device),
+        cellToConnectivityMap.PrepareForOutput(total.NumberOfCells, device));
+
+    vtkm::cont::ArrayHandle<EdgeInterpolation> newPoints;
+    // reverse map from the new points to connectivity array
+    vtkm::cont::ArrayHandle<vtkm::Id> newPointsConnectivityReverseMap;
+
+    GenerateCellSet generateCellSet(value, clipTablesDevicePortal);
+
+    DispatcherMapTopology<GenerateCellSet>(generateCellSet).Invoke(cellSet, scalars,
+        clipTableIdxs, cellSetIndices, outConnectivity,
+        vtkm::exec::ExecutionWholeArray<
+            EdgeInterpolation,
+            VTKM_DEFAULT_STORAGE_TAG,
+            DeviceAdapter>(newPoints, total.NumberOfNewPoints),
+        vtkm::exec::ExecutionWholeArray<
+            vtkm::Id,
+            VTKM_DEFAULT_STORAGE_TAG,
+            DeviceAdapter>(newPointsConnectivityReverseMap, total.NumberOfNewPoints));
+    cellSetIndices.ReleaseResources();
+
+    // Step 3. remove duplicates from the list of new points
+    vtkm::cont::ArrayHandle<vtkm::worklet::EdgeInterpolation> uniqueNewPoints;
+
+    Algorithm::SortByKey(newPoints, newPointsConnectivityReverseMap,
+                         EdgeInterpolation::LessThanOp());
+    Algorithm::Copy(newPoints, uniqueNewPoints);
+    Algorithm::Unique(uniqueNewPoints, EdgeInterpolation::EqualToOp());
+
+    this->NewPointsInterpolation = uniqueNewPoints;
+    this->NewPointsOffset = scalars.GetNumberOfValues();
+
+
+    // Step 4. update the connectivity array with indexes to the new, unique points
+    AmendConnectivity computeNewPointsConnectivity(
+        newPoints.PrepareForInput(device),
+        uniqueNewPoints.PrepareForInput(device),
+        newPointsConnectivityReverseMap.PrepareForInput(device),
+        this->NewPointsOffset,
+        connectivity.PrepareForInPlace(device));
+    Algorithm::Schedule(computeNewPointsConnectivity, total.NumberOfNewPoints);
+
+
+    vtkm::cont::CellSetExplicit<> output;
+    output.Fill(shapes, numIndices, connectivity);
+
+    return output;
+  }
+
+  template<typename ImplicitFunction>
+  class ClipWithImplicitFunction
   {
   public:
     VTKM_CONT_EXPORT
-    AmendConnectivity(IdPortalConst newPointsConnectivityReverseMap,
-                      IdPortalConst connectivityValues,
-                      vtkm::Id newPointsOffset,
-                      IdPortal connectivity)
-      : NewPointsConnectivityReverseMap(newPointsConnectivityReverseMap),
-        ConnectivityValues(connectivityValues),
-        NewPointsStartIndex(newPointsOffset),
-        Connectivity(connectivity)
-    {
-    }
+    ClipWithImplicitFunction(Clip *clipper, const vtkm::cont::DynamicCellSet &cellSet,
+      ImplicitFunction function, vtkm::cont::CellSetExplicit<> *result)
+      : Clipper(clipper), CellSet(&cellSet), Function(function), Result(result)
+    { }
 
-    VTKM_EXEC_EXPORT
-    void operator()(vtkm::Id idx) const
+    template <typename ArrayHandleType>
+    VTKM_CONT_EXPORT
+    void operator()(const ArrayHandleType &handle) const
     {
-      this->Connectivity.Set(this->NewPointsConnectivityReverseMap.Get(idx),
-                             this->ConnectivityValues.Get(idx) + this->NewPointsOffset);
+      vtkm::cont::ArrayHandleTransform<
+        vtkm::FloatDefault,
+        ArrayHandleType,
+        vtkm::ImplicitFunctionValue<ImplicitFunction> > clipScalars(handle,
+                                                                    this->Function);
+
+        *this->Result = this->Clipper->Run(*this->CellSet, clipScalars, 0.0);
     }
 
   private:
-    IdPortalConst NewPointsConnectivityReverseMap;
-    IdPortalConst ConnectivityValues;
-    vtkm::Id NewPointsOffset;
-    IdPortal Connectivity;
+    Clip *Clipper;
+    const vtkm::cont::DynamicCellSet *CellSet;
+    const vtkm::ImplicitFunctionValue<ImplicitFunction> Function;
+    vtkm::cont::CellSetExplicit<> *Result;
   };
-#endif
 
+  template <typename ImplicitFunction>
+  vtkm::cont::CellSetExplicit<> Run(const vtkm::cont::DynamicCellSet &cellSet,
+                                    const ImplicitFunction &clipFunction,
+                                    const vtkm::cont::CoordinateSystem &coords)
+  {
+    vtkm::cont::CellSetExplicit<> output;
+    ClipWithImplicitFunction<ImplicitFunction> clip(this, cellSet, clipFunction,
+                                                    &output);
+    coords.GetData().CastAndCall(clip);
+
+    return output;
+  }
 
   class InterpolateField
   {
@@ -500,9 +637,8 @@ public:
         EdgeInterpolation ei = this->Interpolation.Get(idx);
         T v1 = Field.Get(ei.Vertex1);
         T v2 = Field.Get(ei.Vertex2);
-        typename VecTraits<T>::ComponentType w =
-            static_cast<typename VecTraits<T>::ComponentType>(ei.Weight);
-        Field.Set(this->NewPointsOffset + idx, (w * (v2 - v1)) + v1);
+        Field.Set(this->NewPointsOffset + idx,
+                  internal::Scale(T(v2 - v1), ei.Weight) + v1);
       }
 
     private:
@@ -517,7 +653,7 @@ public:
     {
       vtkm::Id count = this->InterpolationArray.GetNumberOfValues();
 
-      vtkm::cont::ArrayHandle<T, VTKM_DEFAULT_STORAGE_TAG> result;
+      vtkm::cont::ArrayHandle<T> result;
       internal::ResizeArrayHandle(field, field.GetNumberOfValues() + count,
                                   result, DeviceAdapter());
 
@@ -547,104 +683,6 @@ public:
     vtkm::cont::DynamicArrayHandle *Output;
   };
 
-
-
-  Clip()
-    : ClipTablesInstance(), NewPointsInterpolation(), NewPointsOffset()
-  {
-  }
-
-  vtkm::cont::CellSetExplicit<> Run(const vtkm::cont::DynamicCellSet &cellSet,
-                                    const vtkm::cont::DynamicArrayHandle &scalars,
-                                    vtkm::Float64 value)
-  {
-    DeviceAdapter device;
-    ClipTablesPortal clipTablesDevicePortal =
-        this->ClipTablesInstance.GetDevicePortal(device);
-
-
-    // Step 1. compute counts for the elements of the cell set data structure
-    vtkm::cont::ArrayHandle<vtkm::Id> clipTableIdxs;
-    vtkm::cont::ArrayHandle<ClipStats> stats;
-
-    ComputeStats computeStats(value, clipTablesDevicePortal);
-    DispatcherMapTopology<ComputeStats>(computeStats).Invoke(cellSet, scalars,
-       clipTableIdxs, stats);
-
-    // compute offsets for each invocation
-    vtkm::cont::ArrayHandle<ClipStats> cellSetIndices;
-    ClipStats total = Algorithm::ScanExclusive(stats, cellSetIndices);
-
-
-    // Step 2. generate the output cell set
-    vtkm::cont::ArrayHandle<vtkm::Id> shapes;
-    vtkm::cont::ArrayHandle<vtkm::Id> numIndices;
-    vtkm::cont::ArrayHandle<vtkm::Id> connectivity;
-    vtkm::cont::ArrayHandle<vtkm::Id> cellToConnectivityMap;
-    internal::ExecutionConnectivityExplicit<DeviceAdapter> outConnectivity(
-        shapes.PrepareForOutput(total.NumberOfCells, device),
-        numIndices.PrepareForOutput(total.NumberOfCells, device),
-        connectivity.PrepareForOutput(total.NumberOfIndices, device),
-        cellToConnectivityMap.PrepareForOutput(total.NumberOfCells, device));
-
-    vtkm::cont::ArrayHandle<EdgeInterpolation> newPoints;
-    // reverse map from the new points to connectivity array
-    vtkm::cont::ArrayHandle<vtkm::Id> newPointsConnectivityReverseMap;
-
-    GenerateCellSet generateCellSet(value, clipTablesDevicePortal);
-
-    DispatcherMapTopology<GenerateCellSet>(generateCellSet).Invoke(cellSet, scalars,
-        clipTableIdxs, cellSetIndices, outConnectivity,
-        vtkm::exec::ExecutionWholeArray<
-            EdgeInterpolation,
-            VTKM_DEFAULT_STORAGE_TAG,
-            DeviceAdapter>(newPoints, total.NumberOfNewPoints),
-        vtkm::exec::ExecutionWholeArray<
-            vtkm::Id,
-            VTKM_DEFAULT_STORAGE_TAG,
-            DeviceAdapter>(newPointsConnectivityReverseMap, total.NumberOfNewPoints));
-
-
-    // Step 3. remove duplicates from the list of new points
-    vtkm::cont::ArrayHandle<vtkm::worklet::EdgeInterpolation> uniqueNewPoints;
-
-    Algorithm::SortByKey(newPoints, newPointsConnectivityReverseMap,
-                         EdgeInterpolation::LessThanOp());
-    Algorithm::Copy(newPoints, uniqueNewPoints);
-    Algorithm::Unique(uniqueNewPoints, EdgeInterpolation::EqualToOp());
-
-    this->NewPointsInterpolation = uniqueNewPoints;
-    this->NewPointsOffset = scalars.GetNumberOfValues();
-
-
-    // Step 4. update the connectivity array with indexes to the new, unique points
-#if defined(COMBINE_LOWERBOUND_AMEND)
-    AmendConnectivity computeNewPointsConnectivity(
-        newPoints.PrepareForInput(device),
-        uniqueNewPoints.PrepareForInput(device),
-        newPointsConnectivityReverseMap.PrepareForInput(device),
-        this->NewPointsOffset,
-        connectivity.PrepareForInPlace(device));
-    Algorithm::Schedule(computeNewPointsConnectivity, total.NumberOfNewPoints);
-#else
-    vtkm::cont::ArrayHandle<vtkm::Id> newPointsIndices;
-    Algorithm::LowerBounds(uniqueNewPoints, newPointsInfo, newPointsIndices,
-                           EdgeInterpolation::LessThanOp());
-    Algorithm::Schedule(
-        AmendConnectivity(newPointsConnectivityMap.PrepareForInput(device),
-                          newPointsIndices.PrepareForInput(device),
-                          this->NewPointsOffset,
-                          connectivity.PrepareForInPlace(device)),
-        total.NumberOfNewPoints);
-#endif
-
-
-    vtkm::cont::CellSetExplicit<> output;
-    output.Fill(shapes, numIndices, connectivity);
-
-    return output;
-  }
-
   template <typename DynamicArrayHandleType>
   vtkm::cont::DynamicArrayHandle ProcessField(
       const DynamicArrayHandleType &fieldData) const
@@ -664,5 +702,16 @@ private:
 
 }
 } // namespace vtkm::worklet
+
+#if defined(THRUST_SCAN_WORKAROUND)
+namespace thrust {
+namespace detail {
+
+// causes a different code path which does not have the bug
+template<> struct is_integral<vtkm::worklet::ClipStats> : public true_type {};
+
+}
+} // namespace thrust::detail
+#endif
 
 #endif // vtkm_m_worklet_Clip_h

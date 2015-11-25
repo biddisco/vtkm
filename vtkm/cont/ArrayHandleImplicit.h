@@ -63,6 +63,15 @@ public:
   VTKM_EXEC_CONT_EXPORT
   ValueType Get(vtkm::Id index) const { return this->Functor(index); }
 
+  typedef vtkm::cont::internal::IteratorFromArrayPortal<
+      ArrayPortalImplicit<ValueType,FunctorType> > IteratorType;
+
+  VTKM_CONT_EXPORT
+  IteratorType GetIteratorBegin() const
+  {
+    return IteratorType(*this);
+  }
+
 private:
   FunctorType Functor;
   vtkm::Id NumberOfValues;
@@ -76,6 +85,7 @@ struct ArrayHandleImplicitTraits
   typedef vtkm::cont::StorageTagImplicit<
       vtkm::cont::detail::ArrayPortalImplicit<ValueType,
                                               FunctorType> > StorageTag;
+  typedef vtkm::cont::ArrayHandle<ValueType,StorageTag> Superclass;
 };
 
 } // namespace detail
@@ -88,30 +98,24 @@ struct ArrayHandleImplicitTraits
 /// The functor returns the result of the functor as the value of this
 /// array at that position.
 ///
-template <typename ValueType,
+template <typename T,
           class FunctorType>
 class ArrayHandleImplicit
-    : public vtkm::cont::ArrayHandle <
-          ValueType,
-          typename detail::ArrayHandleImplicitTraits<ValueType,
-                                                     FunctorType>::StorageTag >
+    : public detail::ArrayHandleImplicitTraits<T,FunctorType>::Superclass
 {
 private:
-  typedef typename detail::ArrayHandleImplicitTraits<ValueType,
-                                                     FunctorType> ArrayTraits;
+  typedef typename detail::ArrayHandleImplicitTraits<T,FunctorType> ArrayTraits;
 
- public:
-  typedef typename ArrayTraits::StorageTag StorageTag;
+public:
+  VTKM_ARRAY_HANDLE_SUBCLASS(
+      ArrayHandleImplicit,
+      (ArrayHandleImplicit<T,FunctorType>),
+      (typename ArrayTraits::Superclass));
 
-  typedef vtkm::cont::ArrayHandle<ValueType,StorageTag> Superclass;
-
-  ArrayHandleImplicit()
-    : Superclass(typename Superclass::PortalConstControl(FunctorType(),0)) {  }
-
+  VTKM_CONT_EXPORT
   ArrayHandleImplicit(FunctorType functor, vtkm::Id length)
     : Superclass(typename Superclass::PortalConstControl(functor,length))
-    {
-    }
+  {  }
 };
 
 /// make_ArrayHandleImplicit is convenience function to generate an

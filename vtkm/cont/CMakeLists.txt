@@ -26,7 +26,9 @@ set(headers
   ArrayHandleCompositeVector.h
   ArrayHandleConstant.h
   ArrayHandleCounting.h
+  ArrayHandleGroupVec.h
   ArrayHandleImplicit.h
+  ArrayHandleIndex.h
   ArrayHandlePermutation.h
   ArrayHandleTransform.h
   ArrayHandleUniformPointCoordinates.h
@@ -37,7 +39,9 @@ set(headers
   CellSet.h
   CellSetExplicit.h
   CellSetListTag.h
+  CellSetSingleType.h
   CellSetStructured.h
+  CellSetPermutation.h
   CoordinateSystem.h
   DataSet.h
   DeviceAdapter.h
@@ -48,10 +52,10 @@ set(headers
   Error.h
   ErrorControl.h
   ErrorControlAssert.h
+  ErrorControlBadAllocation.h
   ErrorControlBadType.h
   ErrorControlBadValue.h
   ErrorControlInternal.h
-  ErrorControlOutOfMemory.h
   ErrorExecution.h
   Field.h
   LogicalStructure.h
@@ -68,12 +72,8 @@ add_subdirectory(arg)
 
 vtkm_declare_headers(${impl_headers} ${headers})
 
-if (VTKm_ENABLE_CUDA)
-  add_subdirectory(cuda)
-endif ()
-if (VTKm_ENABLE_TBB)
-  add_subdirectory(tbb)
-endif ()
+add_subdirectory(cuda)
+add_subdirectory(tbb)
 
 if (VTKm_ENABLE_HPX)
   add_subdirectory(hpx)

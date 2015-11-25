@@ -20,6 +20,8 @@
 
 #include <vtkm/exec/arg/FetchTagArrayTopologyMapIn.h>
 
+#include <vtkm/exec/arg/ThreadIndicesTopologyMap.h>
+
 #include <vtkm/internal/FunctionInterface.h>
 #include <vtkm/internal/Invocation.h>
 
@@ -45,7 +47,21 @@ struct TestPortal
   }
 };
 
-struct NullParam {  };
+struct TestIndexPortal
+{
+  typedef vtkm::Id ValueType;
+
+  VTKM_EXEC_CONT_EXPORT
+  ValueType Get(vtkm::Id index) const { return index; }
+};
+
+struct TestZeroPortal
+{
+  typedef vtkm::IdComponent ValueType;
+
+  VTKM_EXEC_CONT_EXPORT
+  ValueType Get(vtkm::Id) const { return 0; }
+};
 
 template<vtkm::IdComponent InputDomainIndex,
          vtkm::IdComponent ParamIndex,
@@ -56,15 +72,22 @@ struct FetchArrayTopologyMapInTests
   template<typename Invocation>
   void TryInvocation(const Invocation &invocation) const
   {
+    typedef typename Invocation::InputDomainType ConnectivityType;
+    typedef vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>
+        ThreadIndicesType;
+
     typedef vtkm::exec::arg::Fetch<
         vtkm::exec::arg::FetchTagArrayTopologyMapIn,
         vtkm::exec::arg::AspectTagDefault,
-        Invocation,
-        ParamIndex> FetchType;
+        ThreadIndicesType,
+        TestPortal<T> > FetchType;
 
     FetchType fetch;
 
-    typename FetchType::ValueType value = fetch.Load(0, invocation);
+    ThreadIndicesType indices(0, invocation);
+
+    typename FetchType::ValueType value = fetch.Load(
+          indices, invocation.Parameters.template GetParameter<ParamIndex>());
     VTKM_TEST_ASSERT(value.GetNumberOfComponents() == 8,
                      "Topology fetch got wrong number of components.");
 
@@ -93,7 +116,11 @@ struct FetchArrayTopologyMapInTests
                  << std::endl;
 
     typedef vtkm::internal::FunctionInterface<
-        void(NullParam,NullParam,NullParam,NullParam,NullParam)>
+        void(vtkm::internal::NullType,
+             vtkm::internal::NullType,
+             vtkm::internal::NullType,
+             vtkm::internal::NullType,
+             vtkm::internal::NullType)>
         BaseFunctionInterface;
 
     vtkm::internal::ConnectivityStructuredInternals<3> connectivityInternals;
@@ -106,8 +133,10 @@ struct FetchArrayTopologyMapInTests
                           BaseFunctionInterface()
                           .Replace<InputDomainIndex>(connectivity)
                           .template Replace<ParamIndex>(TestPortal<T>()),
-                          NullParam(),
-                          NullParam()));
+                          vtkm::internal::NullType(),
+                          vtkm::internal::NullType(),
+                          TestIndexPortal(),
+                          TestZeroPortal()));
   }
 
 };
@@ -130,24 +159,31 @@ template<vtkm::IdComponent NumDimensions,
          typename Invocation>
 void TryStructuredPointCoordinatesInvocation(const Invocation &invocation)
 {
+  typedef typename Invocation::InputDomainType ConnectivityType;
+  typedef vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>
+      ThreadIndicesType;
+
   vtkm::exec::arg::Fetch<
       vtkm::exec::arg::FetchTagArrayTopologyMapIn,
       vtkm::exec::arg::AspectTagDefault,
-      Invocation,
-      ParamIndex> fetch;
+      ThreadIndicesType,
+      vtkm::internal::ArrayPortalUniformPointCoordinates> fetch;
 
   vtkm::Vec<vtkm::FloatDefault,3> origin =
       TestValue(0, vtkm::Vec<vtkm::FloatDefault,3>());
   vtkm::Vec<vtkm::FloatDefault,3> spacing =
       TestValue(1, vtkm::Vec<vtkm::FloatDefault,3>());
 
-  vtkm::VecRectilinearPointCoordinates<NumDimensions> value =
-      fetch.Load(0, invocation);
+  vtkm::VecRectilinearPointCoordinates<NumDimensions> value = fetch.Load(
+        ThreadIndicesType(0, invocation),
+        invocation.Parameters.template GetParameter<ParamIndex>());
   VTKM_TEST_ASSERT(test_equal(value.GetOrigin(), origin), "Bad origin.");
   VTKM_TEST_ASSERT(test_equal(value.GetSpacing(), spacing), "Bad spacing.");
 
   origin[0] += spacing[0];
-  value = fetch.Load(1, invocation);
+  value = fetch.Load(
+        ThreadIndicesType(1, invocation),
+        invocation.Parameters.template GetParameter<ParamIndex>());
   VTKM_TEST_ASSERT(test_equal(value.GetOrigin(), origin), "Bad origin.");
   VTKM_TEST_ASSERT(test_equal(value.GetSpacing(), spacing), "Bad spacing.");
 }
@@ -159,7 +195,11 @@ void TryStructuredPointCoordinates(
     const vtkm::internal::ArrayPortalUniformPointCoordinates &coordinates)
 {
   typedef vtkm::internal::FunctionInterface<
-      void(NullParam,NullParam,NullParam,NullParam,NullParam)>
+      void(vtkm::internal::NullType,
+           vtkm::internal::NullType,
+           vtkm::internal::NullType,
+           vtkm::internal::NullType,
+           vtkm::internal::NullType)>
       BaseFunctionInterface;
 
   // Try with topology in argument 1 and point coordinates in argument 2
@@ -168,8 +208,10 @@ void TryStructuredPointCoordinates(
           BaseFunctionInterface()
           .Replace<1>(connectivity)
           .template Replace<2>(coordinates),
-          NullParam(),
-          NullParam())
+          vtkm::internal::NullType(),
+          vtkm::internal::NullType(),
+          TestIndexPortal(),
+          TestZeroPortal())
         );
   // Try again with topology in argument 3 and point coordinates in argument 1
   TryStructuredPointCoordinatesInvocation<NumDimensions,1>(
@@ -177,8 +219,10 @@ void TryStructuredPointCoordinates(
           BaseFunctionInterface()
           .Replace<3>(connectivity)
           .template Replace<1>(coordinates),
-          NullParam(),
-          NullParam())
+          vtkm::internal::NullType(),
+          vtkm::internal::NullType(),
+          TestIndexPortal(),
+          TestZeroPortal())
         );
 }
 

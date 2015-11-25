@@ -71,6 +71,28 @@ struct IsValidArrayHandle {
     >::type type;
 };
 
+/// Checks to see if the ArrayHandle for the given DeviceAdatper allows
+/// writing, as some ArrayHandles (Implicit) don't support writing.
+/// This check is compatable with the Boost meta-template programming
+/// library (MPL). It contains a typedef named type that is either
+//  boost::mpl::true_ or boost::mpl::false_.
+/// Both of these have a typedef named value with the respective boolean value.
+///
+template<typename ArrayHandle, typename DeviceAdapterTag>
+struct IsWriteableArrayHandle {
+private:
+  typedef typename ArrayHandle:: template ExecutionTypes<
+                                            DeviceAdapterTag > ExecutionTypes;
+  typedef typename ExecutionTypes::Portal::ValueType ValueType;
+
+  //All ArrayHandles that use ImplicitStorage as the final writable location
+  //will have a value type of void*, which is what we are trying to detect
+  typedef typename boost::remove_pointer<ValueType>::type  RawValueType;
+  typedef boost::is_void<RawValueType> IsVoidType;
+public:
+  typedef typename boost::mpl::not_<IsVoidType>::type type;
+};
+
 /// Checks to see if the given object is an array handle. This check is
 /// compatible with the Boost meta-template programming library (MPL). It
 /// contains a typedef named \c type that is either boost::mpl::true_ or
@@ -91,10 +113,97 @@ struct ArrayHandleCheck
       ::vtkm::cont::internal::ArrayHandleBase, T>::type type;
 };
 
-#define VTKM_IS_ARRAY_HANDLE(type) \
-  BOOST_MPL_ASSERT(( ::vtkm::cont::internal::ArrayHandleCheck<type> ))
+#define VTKM_IS_ARRAY_HANDLE(T) \
+  VTKM_STATIC_ASSERT(::vtkm::cont::internal::ArrayHandleCheck<T>::type::value)
 
 } // namespace internal
+
+namespace detail {
+
+template<typename T> struct GetTypeInParentheses;
+template<typename T>
+struct GetTypeInParentheses<void(T)>
+{
+  typedef T type;
+};
+
+} // namespace detail
+
+// Implementation for VTKM_ARRAY_HANDLE_SUBCLASS macros
+#define VTK_M_ARRAY_HANDLE_SUBCLASS_IMPL(classname, fullclasstype, superclass, typename__) \
+  typedef typename__ vtkm::cont::detail::GetTypeInParentheses<void fullclasstype>::type Thisclass;\
+  typedef typename__ vtkm::cont::detail::GetTypeInParentheses<void superclass>::type Superclass;\
+  \
+  VTKM_IS_ARRAY_HANDLE(Superclass); \
+  \
+  VTKM_CONT_EXPORT \
+  classname() : Superclass() {  } \
+  \
+  VTKM_CONT_EXPORT \
+  classname(const Thisclass &src) : Superclass(src) {  } \
+  \
+  VTKM_CONT_EXPORT \
+  classname(const vtkm::cont::ArrayHandle<typename__ Superclass::ValueType, typename__ Superclass::StorageTag> &src) : Superclass(src) {  } \
+  \
+  VTKM_CONT_EXPORT \
+  virtual ~classname() {  } \
+  \
+  VTKM_CONT_EXPORT \
+  Thisclass &operator=(const Thisclass &src) \
+  { \
+    this->Superclass::operator=(src); \
+    return *this; \
+  } \
+  \
+  typedef typename__ Superclass::ValueType ValueType; \
+  typedef typename__ Superclass::StorageTag StorageTag
+
+/// \brief Macro to make default methods in ArrayHandle subclasses.
+///
+/// This macro defines the default constructors, destructors and assignment
+/// operators for ArrayHandle subclasses that are templates. The ArrayHandle
+/// subclasses are assumed to be empty convenience classes. The macro should be
+/// defined after a \c public: declaration.
+///
+/// This macro takes three arguments. The first argument is the classname.
+/// The second argument is the full class type. The third argument is the
+/// superclass type (either \c ArrayHandle or another sublcass). Because
+/// C macros do not handle template parameters very well (the preprocessor
+/// thinks the template commas are macro argument commas), the second and
+/// third arguments must be wrapped in parentheses.
+///
+/// This macro also defines a Superclass typedef as well as ValueType and
+/// StorageTag.
+///
+/// Note that this macor only works on ArrayHandle subclasses that are
+/// templated. For ArrayHandle sublcasses that are not templates, use
+/// VTKM_ARRAY_HANDLE_SUBCLASS_NT.
+///
+#define VTKM_ARRAY_HANDLE_SUBCLASS(classname, fullclasstype, superclass) \
+  VTK_M_ARRAY_HANDLE_SUBCLASS_IMPL(classname, fullclasstype, superclass, typename)
+
+/// \brief Macro to make default methods in ArrayHandle subclasses.
+///
+/// This macro defines the default constructors, destructors and assignment
+/// operators for ArrayHandle subclasses that are not templates. The
+/// ArrayHandle subclasses are assumed to be empty convenience classes. The
+/// macro should be defined after a \c public: declaration.
+///
+/// This macro takes two arguments. The first argument is the classname. The
+/// second argument is the superclass type (either \c ArrayHandle or another
+/// sublcass). Because C macros do not handle template parameters very well
+/// (the preprocessor thinks the template commas are macro argument commas),
+/// the second argument must be wrapped in parentheses.
+///
+/// This macro also defines a Superclass typedef as well as ValueType and
+/// StorageTag.
+///
+/// Note that this macor only works on ArrayHandle subclasses that are not
+/// templated. For ArrayHandle sublcasses that are are templates, use
+/// VTKM_ARRAY_HANDLE_SUBCLASS.
+///
+#define VTKM_ARRAY_HANDLE_SUBCLASS_NT(classname, superclass) \
+  VTK_M_ARRAY_HANDLE_SUBCLASS_IMPL(classname, (classname), superclass, )
 
 /// \brief Manages an array-worth of data.
 ///
@@ -149,6 +258,18 @@ public:
     this->Internals->ExecutionArrayValid = false;
   }
 
+  /// Copy constructor.
+  ///
+  /// Implemented so that it is defined exclusively in the control environment.
+  /// If there is a separate device for the execution environment (for example,
+  /// with CUDA), then the automatically generated copy constructor could be
+  /// created for all devices, and it would not be valid for all devices.
+  ///
+  VTKM_CONT_EXPORT
+  ArrayHandle(const vtkm::cont::ArrayHandle<ValueType,StorageTag> &src)
+    : Internals(src.Internals)
+  {  }
+
   /// Special constructor for subclass specializations that need to set the
   /// initial state of the control array. When this constructor is used, it
   /// is assumed that the control array is valid.
@@ -159,6 +280,26 @@ public:
     this->Internals->ControlArray = storage;
     this->Internals->ControlArrayValid = true;
     this->Internals->ExecutionArrayValid = false;
+  }
+
+  /// Destructs an empty ArrayHandle.
+  ///
+  /// Implemented so that it is defined exclusively in the control environment.
+  /// If there is a separate device for the execution environment (for example,
+  /// with CUDA), then the automatically generated destructor could be
+  /// created for all devices, and it would not be valid for all devices.
+  ///
+  VTKM_CONT_EXPORT
+  virtual ~ArrayHandle() {  }
+
+  /// \brief Copies an ArrayHandle
+  ///
+  VTKM_CONT_EXPORT
+  vtkm::cont::ArrayHandle<ValueType,StorageTag> &
+  operator=(const vtkm::cont::ArrayHandle<ValueType,StorageTag> &src)
+  {
+    this->Internals = src.Internals;
+    return *this;
   }
 
   /// Get the array portal of the control array.
@@ -215,11 +356,51 @@ public:
     }
   }
 
+  /// Copies data into the given iterator for the control environment. This
+  /// method can skip copying into an internally managed control array.
+  ///
+  template <class IteratorType, class DeviceAdapterTag>
+  VTKM_CONT_EXPORT void CopyInto(IteratorType dest, DeviceAdapterTag) const
+  {
+    BOOST_CONCEPT_ASSERT((boost::OutputIterator<IteratorType, ValueType>));
+    BOOST_CONCEPT_ASSERT((boost::ForwardIterator<IteratorType>));
+
+    VTKM_IS_DEVICE_ADAPTER_TAG(DeviceAdapterTag);
+
+    if (!this->Internals->ControlArrayValid &&
+        !this->Internals->ExecutionArrayValid)
+      {
+      throw vtkm::cont::ErrorControlBadValue(
+        "ArrayHandle has no data to copy into Iterator.");
+      }
+
+    if (!this->Internals->ControlArrayValid &&
+        this->Internals->ExecutionArray->IsDeviceAdapter(DeviceAdapterTag()))
+      {
+        /// Dynamically cast ArrayHandleExecutionManagerBase into a concrete
+        /// class and call CopyInto. The dynamic conversion will be sucessful
+        /// becuase the check to ensure the ExecutionArray is of the type
+        /// DeviceAdapterTag has already passed
+        typedef vtkm::cont::internal::ArrayHandleExecutionManager<
+                                T, StorageTag, DeviceAdapterTag> ConcreteType;
+        ConcreteType *ConcreteExecutionArray =
+                  dynamic_cast<ConcreteType*>(this->Internals->ExecutionArray.get());
+
+        ConcreteExecutionArray->CopyInto(dest);
+      }
+    else
+      {
+      PortalConstControl portal = this->GetPortalConstControl();
+      std::copy(portal.GetIteratorBegin(), portal.GetIteratorBegin() +
+                                            this->GetNumberOfValues(), dest);
+      }
+  }
+
   /// \brief Allocates an array large enough to hold the given number of values.
   ///
   /// The allocation may be done on an already existing array, but can wipe out
   /// any data already in the array. This method can throw
-  /// ErrorControlOutOfMemory if the array cannot be allocated or
+  /// ErrorControlBadAllocation if the array cannot be allocated or
   /// ErrorControlBadValue if the allocation is not feasible (for example, the
   /// array storage is read-only).
   ///
@@ -395,6 +576,20 @@ public:
     return portal;
   }
 
+  /// Like a pointer, two \c ArrayHandles are considered equal if they point
+  /// to the same location in memory.
+  ///
+  VTKM_CONT_EXPORT
+  bool operator==(const ArrayHandle<ValueType,StorageTag> &rhs) const
+  {
+    return (this->Internals.get() == rhs.Internals.get());
+  }
+  VTKM_CONT_EXPORT
+  bool operator!=(const ArrayHandle<ValueType,StorageTag> &rhs) const
+  {
+    return (this->Internals.get() != rhs.Internals.get());
+  }
+
 // private:
   struct InternalStruct
   {
@@ -407,6 +602,7 @@ public:
     bool ExecutionArrayValid;
   };
 
+  VTKM_CONT_EXPORT
   ArrayHandle(boost::shared_ptr<InternalStruct> i)
     : Internals(i)
   { }

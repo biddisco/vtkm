@@ -18,13 +18,25 @@
 //  this software.
 //============================================================================
 
+//We first check if VTKM_DEVICE_ADAPTER is defined, so that when TBB and CUDA
+//includes this file we use the device adapter that they have set.
+#ifndef VTKM_DEVICE_ADAPTER
+#define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_SERIAL
+#endif
+
 #include <vtkm/worklet/IsosurfaceUniformGrid.h>
 #include <vtkm/worklet/DispatcherMapField.h>
 
+#include <vtkm/Math.h>
+#include <vtkm/cont/ArrayHandleCounting.h>
 #include <vtkm/cont/CellSetExplicit.h>
 #include <vtkm/cont/DataSet.h>
 
-#include <vtkm/cont/testing/Testing.h>
+//Suppress warnings about glut being deprecated on OSX
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 #if defined (__APPLE__)
 # include <GLUT/glut.h>
@@ -57,11 +69,11 @@ public:
   typedef _1 InputDomain;
 
   const vtkm::Id xdim, ydim, zdim;
-  const float xmin, ymin, zmin, xmax, ymax, zmax;
+  const vtkm::FloatDefault xmin, ymin, zmin, xmax, ymax, zmax;
   const vtkm::Id cellsPerLayer;
 
   VTKM_CONT_EXPORT
-  TangleField(const vtkm::Id3 dims, const float mins[3], const float maxs[3]) : xdim(dims[0]), ydim(dims[1]), zdim(dims[2]),
+  TangleField(const vtkm::Id3 dims, const vtkm::FloatDefault mins[3], const vtkm::FloatDefault maxs[3]) : xdim(dims[0]), ydim(dims[1]), zdim(dims[2]),
               xmin(mins[0]), ymin(mins[1]), zmin(mins[2]), xmax(maxs[0]), ymax(maxs[1]), zmax(maxs[2]), cellsPerLayer((xdim) * (ydim)) { };
 
   VTKM_EXEC_EXPORT
@@ -71,9 +83,9 @@ public:
     const vtkm::Id y = (vertexId / (xdim)) % (ydim);
     const vtkm::Id z = vertexId / cellsPerLayer;
 
-    const float fx = static_cast<float>(x) / static_cast<float>(xdim-1);
-    const float fy = static_cast<float>(y) / static_cast<float>(xdim-1);
-    const float fz = static_cast<float>(z) / static_cast<float>(xdim-1);
+    const vtkm::FloatDefault fx = static_cast<vtkm::FloatDefault>(x) / static_cast<vtkm::FloatDefault>(xdim-1);
+    const vtkm::FloatDefault fy = static_cast<vtkm::FloatDefault>(y) / static_cast<vtkm::FloatDefault>(xdim-1);
+    const vtkm::FloatDefault fz = static_cast<vtkm::FloatDefault>(z) / static_cast<vtkm::FloatDefault>(xdim-1);
 
     const vtkm::Float32 xx = 3.0f*(xmin+(xmax-xmin)*(fx));
     const vtkm::Float32 yy = 3.0f*(ymin+(ymax-ymin)*(fy));
@@ -90,17 +102,23 @@ vtkm::cont::DataSet MakeIsosurfaceTestDataSet(vtkm::Id3 dims)
   vtkm::cont::DataSet dataSet;
 
   const vtkm::Id3 vdims(dims[0] + 1, dims[1] + 1, dims[2] + 1);
-  const vtkm::Id dim3 = dims[0]*dims[1]*dims[2];
 
-  float mins[3] = {-1.0f, -1.0f, -1.0f};
-  float maxs[3] = {1.0f, 1.0f, 1.0f};
+  vtkm::FloatDefault mins[3] = {-1.0f, -1.0f, -1.0f};
+  vtkm::FloatDefault maxs[3] = {1.0f, 1.0f, 1.0f};
 
   vtkm::cont::ArrayHandle<vtkm::Float32> fieldArray;
-  vtkm::cont::ArrayHandleCounting<vtkm::Id> vertexCountImplicitArray(0, vdims[0]*vdims[1]*vdims[2]);
+  vtkm::cont::ArrayHandleCounting<vtkm::Id> vertexCountImplicitArray(0, 1, vdims[0]*vdims[1]*vdims[2]);
   vtkm::worklet::DispatcherMapField<TangleField> tangleFieldDispatcher(TangleField(vdims, mins, maxs));
   tangleFieldDispatcher.Invoke(vertexCountImplicitArray, fieldArray);
 
-  vtkm::cont::ArrayHandleUniformPointCoordinates coordinates(vdims);
+  vtkm::Vec<vtkm::FloatDefault,3> origin(0.0f, 0.0f, 0.0f);
+  vtkm::Vec<vtkm::FloatDefault,3> spacing(
+        1.0f/static_cast<vtkm::FloatDefault>(dims[0]),
+        1.0f/static_cast<vtkm::FloatDefault>(dims[2]),
+        1.0f/static_cast<vtkm::FloatDefault>(dims[1]));
+
+  vtkm::cont::ArrayHandleUniformPointCoordinates
+      coordinates(vdims, origin, spacing);
   dataSet.AddCoordinateSystem(
           vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
 
@@ -124,9 +142,9 @@ void initializeGL()
   glEnable(GL_DEPTH_TEST);
   glShadeModel(GL_SMOOTH);
 
-  float white[] = { 0.8, 0.8, 0.8, 1.0 };
-  float black[] = { 0.0, 0.0, 0.0, 1.0 };
-  float lightPos[] = { 10.0, 10.0, 10.5, 1.0 };
+  vtkm::FloatDefault white[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+  vtkm::FloatDefault black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+  vtkm::FloatDefault lightPos[] = { 10.0f, 10.0f, 10.5f, 1.0f };
 
   glLightfv(GL_LIGHT0, GL_AMBIENT, white);
   glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
@@ -162,11 +180,11 @@ void displayCall()
   qrot.getRotMat(rotationMatrix);
   glMultMatrixf(rotationMatrix);
   glTranslatef(-0.5f, -0.5f, -0.5f);
- 
+
   glColor3f(0.1f, 0.1f, 0.6f);
 
   glBegin(GL_TRIANGLES);
-  for (unsigned int i=0; i<verticesArray.GetNumberOfValues(); i++)
+  for (vtkm::IdComponent i=0; i<verticesArray.GetNumberOfValues(); i++)
   {
     vtkm::Vec<vtkm::Float32, 3> curNormal = normalsArray.GetPortalConstControl().Get(i);
     vtkm::Vec<vtkm::Float32, 3> curVertex = verticesArray.GetPortalConstControl().Get(i);
@@ -183,17 +201,18 @@ void displayCall()
 // Allow rotations of the view
 void mouseMove(int x, int y)
 {
-  int dx = x - lastx;
-  int dy = y - lasty;
+  vtkm::Float32 dx = static_cast<vtkm::Float32>(x - lastx);
+  vtkm::Float32 dy = static_cast<vtkm::Float32>(y - lasty);
 
   if (mouse_state == 0)
   {
+    vtkm::Float32 pideg = static_cast<vtkm::Float32>(vtkm::Pi_2());
     Quaternion newRotX;
-    newRotX.setEulerAngles(-0.2*dx*M_PI/180.0, 0.0, 0.0);
+    newRotX.setEulerAngles(-0.2f*dx*pideg/180.0f, 0.0f, 0.0f);
     qrot.mul(newRotX);
 
     Quaternion newRotY;
-    newRotY.setEulerAngles(0.0, 0.0, -0.2*dy*M_PI/180.0);
+    newRotY.setEulerAngles(0.0f, 0.0f, -0.2f*dy*pideg/180.0f);
     qrot.mul(newRotY);
   }
   lastx = x;
@@ -214,7 +233,10 @@ void mouseCall(int button, int state, int x, int y)
 // Compute and render an isosurface for a uniform grid example
 int main(int argc, char* argv[])
 {
-  std::cout << "IsosurfaceUniformGrid Example" << std::endl;
+  typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapter>
+                                                        DeviceAdapterTraits;
+  std::cout << "Running IsosurfaceUniformGrid example on device adapter: "
+            << DeviceAdapterTraits::GetId() << std::endl;
 
   vtkm::cont::DataSet dataSet = MakeIsosurfaceTestDataSet(dims);
 
@@ -227,7 +249,17 @@ int main(int argc, char* argv[])
                         scalarsArray);
 
   std::cout << "Number of output vertices: " << verticesArray.GetNumberOfValues() << std::endl;
- 
+
+  std::cout << "vertices: ";
+  vtkm::cont::printSummary_ArrayHandle(verticesArray, std::cout);
+  std::cout << std::endl;
+  std::cout << "normals: ";
+  vtkm::cont::printSummary_ArrayHandle(normalsArray, std::cout);
+  std::cout << std::endl;
+  std::cout << "scalars: ";
+  vtkm::cont::printSummary_ArrayHandle(scalarsArray, std::cout);
+  std::cout << std::endl;
+
   lastx = lasty = 0;
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
@@ -242,3 +274,6 @@ int main(int argc, char* argv[])
   return 0;
 }
 
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+# pragma GCC diagnostic pop
+#endif

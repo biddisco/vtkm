@@ -20,25 +20,22 @@
 ##
 ##=============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
-find_package(OpenGL)
-find_package(GLUT)
-
 if(OPENGL_FOUND AND GLUT_FOUND)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR})
   add_executable(HelloWorld_SERIAL HelloWorld.cxx)
   target_include_directories(HelloWorld_SERIAL PRIVATE ${OPENGL_INCLUDE_DIR} ${GLEW_INCLUDE_DIR} ${GLUT_INCLUDE_DIR})
-  target_link_libraries(HelloWorld_SERIAL ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES})
+  target_link_libraries(HelloWorld_SERIAL ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${VTKm_LIBRARIES})
 
   if(VTKm_Cuda_FOUND)
-    cuda_add_executable(HelloWorld_CUDA HelloWorld.cxx)
-    target_link_libraries(HelloWorld_CUDA ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES})
+    vtkm_disable_troublesome_thrust_warnings()
+    cuda_add_executable(HelloWorld_CUDA HelloWorld.cu)
+    target_link_libraries(HelloWorld_CUDA ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${VTKm_LIBRARIES})
   endif()
 
   if(VTKm_TBB_FOUND)
     add_executable(HelloWorld_TBB HelloWorld.cxx)
     target_include_directories(HelloWorld_TBB PRIVATE ${OPENGL_INCLUDE_DIR} ${GLEW_INCLUDE_DIR} ${GLUT_INCLUDE_DIR})
-    target_link_libraries(HelloWorld_TBB ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${TBB_LIBRARIES})
+    target_link_libraries(HelloWorld_TBB ${OPENGL_LIBRARIES} ${GLEW_LIBRARIES} ${GLUT_LIBRARIES} ${VTKm_LIBRARIES})
   endif()
 
 endif()

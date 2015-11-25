@@ -24,13 +24,10 @@
 #include <vtkm/cont/ErrorControlBadValue.h>
 #include <vtkm/cont/ErrorControlInternal.h>
 
+#include <vtkm/StaticAssert.h>
 #include <vtkm/VecTraits.h>
 
 #include <vtkm/internal/FunctionInterface.h>
-
-VTKM_THIRDPARTY_PRE_INCLUDE
-#include <boost/static_assert.hpp>
-VTKM_THIRDPARTY_POST_INCLUDE
 
 #include <sstream>
 
@@ -181,7 +178,7 @@ public:
   static const vtkm::IdComponent NUM_COMPONENTS =
       vtkm::VecTraits<ValueType>::NUM_COMPONENTS;
 
-  BOOST_STATIC_ASSERT(NUM_COMPONENTS == PortalTypes::ARITY);
+  VTKM_STATIC_ASSERT(NUM_COMPONENTS == PortalTypes::ARITY);
 
   VTKM_EXEC_CONT_EXPORT
   ArrayPortalCompositeVector() {  }
@@ -236,7 +233,7 @@ public:
   // If you get a compile error here, it means you probably tried to create
   // an ArrayHandleCompositeVector with a return type of a vector with a
   // different number of components than the number of arrays given.
-  BOOST_STATIC_ASSERT(NUM_COMPONENTS == FunctionInterfaceArrays::ARITY);
+  VTKM_STATIC_ASSERT(NUM_COMPONENTS == FunctionInterfaceArrays::ARITY);
 
   VTKM_CONT_EXPORT
   ArrayPortalCompositeVectorCont() : NumberOfValues(0) {  }
@@ -254,12 +251,14 @@ public:
 
   VTKM_CONT_EXPORT
   ValueType Get(vtkm::Id vtkmNotUsed(index)) const {
-    throw vtkm::cont::ErrorControlInternal("Not implemented.");
+    throw vtkm::cont::ErrorControlInternal(
+          "Const Array Portal not implemented for composite vector.");
   }
 
   VTKM_CONT_EXPORT
   void Set(vtkm::Id vtkmNotUsed(index), ValueType vtkmNotUsed(value)) {
-    throw vtkm::cont::ErrorControlInternal("Not implemented.");
+    throw vtkm::cont::ErrorControlInternal(
+          "Const Array Portal not implemented for composite vector.");
   }
 
 private:
@@ -279,6 +278,7 @@ struct ArrayHandleCompositeVectorTraits
   typedef typename vtkm::internal::FunctionInterface<SignatureWithArrays>::ResultType
           ValueType;
   typedef vtkm::cont::internal::Storage<ValueType, Tag> StorageType;
+  typedef vtkm::cont::ArrayHandle<ValueType, Tag> Superclass;
 };
 
 // It may seem weird that this specialization throws an exception for
@@ -483,9 +483,7 @@ private:
 ///
 template<typename Signature>
 class ArrayHandleCompositeVector
-    : public vtkm::cont::ArrayHandle<
-        typename internal::ArrayHandleCompositeVectorTraits<Signature>::ValueType,
-        typename internal::ArrayHandleCompositeVectorTraits<Signature>::Tag>
+    : public internal::ArrayHandleCompositeVectorTraits<Signature>::Superclass
 {
   typedef typename internal::ArrayHandleCompositeVectorTraits<Signature>::StorageType
       StorageType;
@@ -493,14 +491,10 @@ class ArrayHandleCompositeVector
       ComponentMapType;
 
 public:
-  typedef vtkm::cont::ArrayHandle<
-      typename internal::ArrayHandleCompositeVectorTraits<Signature>::ValueType,
-      typename internal::ArrayHandleCompositeVectorTraits<Signature>::Tag>
-    Superclass;
-  typedef typename Superclass::ValueType ValueType;
-
-  VTKM_CONT_EXPORT
-  ArrayHandleCompositeVector() : Superclass() {  }
+  VTKM_ARRAY_HANDLE_SUBCLASS(
+      ArrayHandleCompositeVector,
+      (ArrayHandleCompositeVector<Signature>),
+      (typename internal::ArrayHandleCompositeVectorTraits<Signature>::Superclass));
 
   VTKM_CONT_EXPORT
   ArrayHandleCompositeVector(

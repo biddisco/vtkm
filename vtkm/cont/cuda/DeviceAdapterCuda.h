@@ -21,7 +21,15 @@
 #define vtk_m_cont_cuda_DeviceAdapterCuda_h
 
 #include <vtkm/cont/cuda/internal/DeviceAdapterTagCuda.h>
+
+#ifdef VTKM_CUDA
+
+//This is required to be first so that we get patches for thrust included
+//in the correct order
+#include <vtkm/exec/cuda/internal/ThrustPatches.h>
+
 #include <vtkm/cont/cuda/internal/ArrayManagerExecutionCuda.h>
 #include <vtkm/cont/cuda/internal/DeviceAdapterAlgorithmCuda.h>
+#endif
 
 #endif //vtk_m_cont_cuda_DeviceAdapterCuda_h

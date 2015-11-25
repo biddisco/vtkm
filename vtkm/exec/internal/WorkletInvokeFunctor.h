@@ -49,10 +49,15 @@ public:
     this->Worklet.SetErrorMessageBuffer(buffer);
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
+  template<typename T>
   VTKM_EXEC_EXPORT
-  void operator()(vtkm::Id index) const
+  void operator()(T index) const
   {
-    detail::DoWorkletInvokeFunctor(this->Worklet, this->Invocation, index);
+    detail::DoWorkletInvokeFunctor(this->Worklet,
+                                   this->Invocation,
+                                   this->Worklet.GetThreadIndices(
+                                     index, this->Invocation));
   }
 
 private:

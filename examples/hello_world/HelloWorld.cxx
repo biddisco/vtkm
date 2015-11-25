@@ -17,6 +17,13 @@
 //  Laboratory (LANL), the U.S. Government retains certain rights in
 //  this software.
 //============================================================================
+
+//We first check if VTKM_DEVICE_ADAPTER is defined, so that when TBB and CUDA
+//includes this file we use the device adapter that they have set.
+#ifndef VTKM_DEVICE_ADAPTER
+#define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_SERIAL
+#endif
+
 #include <iostream>
 
 #include <vtkm/Math.h>
@@ -25,6 +32,12 @@
 #include <vtkm/opengl/TransferToOpenGL.h>
 #include <vtkm/worklet/DispatcherMapField.h>
 #include <vtkm/worklet/WorkletMapField.h>
+
+//Suppress warnings about glut being deprecated on OSX
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 
 //OpenGL Graphics includes
 //glew needs to go before glut
@@ -43,9 +56,10 @@ struct HelloVTKMInterop
   vtkm::Vec< vtkm::Int32, 2 > Dims;
 
   GLuint ProgramId;
-  GLuint VBOId;
   GLuint VAOId;
-  GLuint ColorId;
+
+  vtkm::opengl::BufferState VBOState;
+  vtkm::opengl::BufferState ColorState;
 
   vtkm::cont::Timer<DeviceAdapter> Timer;
 
@@ -57,9 +71,9 @@ struct HelloVTKMInterop
   HelloVTKMInterop(vtkm::Int32 width, vtkm::Int32 height):
     Dims(256,256),
     ProgramId(),
-    VBOId(),
     VAOId(),
-    ColorId(),
+    VBOState(),
+    ColorState(),
     Timer(),
     InputData(),
     InHandle(),
@@ -106,11 +120,11 @@ struct HelloVTKMInterop
     glUniformMatrix4fv( unifLoc, 1, GL_FALSE, mvp );
 
     glEnableVertexAttribArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, this->VBOId);
+    glBindBuffer(GL_ARRAY_BUFFER, *this->VBOState.GetHandle());
     glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 
     glEnableClientState(GL_COLOR_ARRAY);
-    glBindBuffer(GL_ARRAY_BUFFER, this->ColorId);
+    glBindBuffer(GL_ARRAY_BUFFER, *this->ColorState.GetHandle());
     glColorPointer(4, GL_UNSIGNED_BYTE, 0, 0 );
 
     glDrawArrays( GL_POINTS, 0, arraySize );
@@ -152,8 +166,8 @@ struct HelloVTKMInterop
   GenerateSurfaceWorklet worklet( t );
   DispatcherType(worklet).Invoke( this->InHandle, this->OutCoords, this->OutColors );
 
-  vtkm::opengl::TransferToOpenGL( this->OutCoords, this->VBOId, DeviceAdapter() );
-  vtkm::opengl::TransferToOpenGL( this->OutColors, this->ColorId, DeviceAdapter() );
+  vtkm::opengl::TransferToOpenGL( this->OutCoords, this->VBOState, DeviceAdapter() );
+  vtkm::opengl::TransferToOpenGL( this->OutColors, this->ColorState, DeviceAdapter() );
 
   this->render();
   if(t > 10)
@@ -182,6 +196,11 @@ void idle()
 
 int main(int argc, char** argv)
 {
+  typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapter>
+                                                        DeviceAdapterTraits;
+  std::cout << "Running Hello World example on device adapter: "
+            << DeviceAdapterTraits::GetId() << std::endl;
+
   glewExperimental = GL_TRUE;
   glutInit(&argc, argv);
 
@@ -206,4 +225,6 @@ int main(int argc, char** argv)
   glutMainLoop();
 }
 
-
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+# pragma GCC diagnostic pop
+#endif

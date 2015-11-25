@@ -24,6 +24,8 @@ set(headers
   TestingArrayHandles.h
   TestingComputeBounds.h
   TestingDeviceAdapter.h
+  TestingDataSetExplicit.h
+  TestingDataSetSingleType.h
   TestingFancyArrayHandles.h
   )
 
@@ -35,6 +37,7 @@ set(unit_tests
   UnitTestArrayHandleCounting.cxx
   UnitTestArrayHandleFancy.cxx
   UnitTestArrayHandleImplicit.cxx
+  UnitTestArrayHandleIndex.cxx
   UnitTestArrayHandlePermutation.cxx
   UnitTestArrayHandleTransform.cxx
   UnitTestArrayHandleUniformPointCoordinates.cxx
@@ -43,6 +46,8 @@ set(unit_tests
   UnitTestComputeBoundsSerial.cxx
   UnitTestDataSetRegular.cxx
   UnitTestDataSetExplicit.cxx
+  UnitTestDataSetSingleType.cxx
+  UnitTestDataSetPermutation.cxx
   UnitTestDeviceAdapterAlgorithmDependency.cxx
   UnitTestDeviceAdapterAlgorithmGeneral.cxx
   UnitTestDeviceAdapterSerial.cxx

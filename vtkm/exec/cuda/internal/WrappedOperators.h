@@ -37,6 +37,50 @@ namespace exec {
 namespace cuda {
 namespace internal {
 
+
+// Unary function object wrapper which can detect and handle calling the
+// wrapped operator with complex value types such as
+// PortalValue which happen when passed an input array that
+// is implicit.
+template<typename T_, typename Function>
+struct  WrappedUnaryPredicate
+{
+  typedef typename boost::remove_const<T_>::type T;
+
+  //make typedefs that thust expects unary operators to have
+  typedef T first_argument_type;
+  typedef bool result_type;
+
+  Function m_f;
+
+  VTKM_EXEC_EXPORT
+  WrappedUnaryPredicate()
+    : m_f()
+  {}
+
+  VTKM_CONT_EXPORT
+  WrappedUnaryPredicate(const Function &f)
+    : m_f(f)
+  {}
+
+  VTKM_EXEC_EXPORT bool operator()(const T &x) const
+  {
+    return m_f(x);
+  }
+
+  template<typename U>
+  VTKM_EXEC_EXPORT bool operator()(const PortalValue<U> &x) const
+  {
+    return m_f((T)x);
+  }
+
+  VTKM_EXEC_EXPORT bool operator()(const thrust::system::cuda::pointer<T> x) const
+  {
+    return m_f(*x);
+  }
+};
+
+
 // Binary function object wrapper which can detect and handle calling the
 // wrapped operator with complex value types such as
 // PortalValue which happen when passed an input array that
@@ -124,7 +168,7 @@ struct WrappedBinaryPredicate
   //make typedefs that thust expects binary operators to have
   typedef T first_argument_type;
   typedef T second_argument_type;
-  typedef T result_type;
+  typedef bool result_type;
 
   Function m_f;
 
@@ -196,19 +240,17 @@ struct WrappedBinaryPredicate
 }
 } //namespace vtkm::exec::cuda::internal
 
-namespace thrust
-{
-namespace detail
-{
-//So for thrust 1.8.0 - 1.8.2 the inclusive_scan has a bug when accumulating
-//values when the binary operators states it is not commutative. At the
-//same time the is_commutative condition is used to perform faster paths. So
-//We state that all WrappedBinaryOperator are commutative.
+namespace thrust { namespace detail {
+//
+// We tell Thrust that our WrappedBinaryOperator is commutative so that we
+// activate numerous fast paths inside thrust which are only available when
+// the binary functor is commutative and the T type is is_arithmetic
+//
+//
 template< typename T, typename F>
 struct is_commutative< vtkm::exec::cuda::internal::WrappedBinaryOperator<T, F> > :
       public thrust::detail::is_arithmetic<T> { };
-}
-}
 
+} } //namespace thrust::detail
 
 #endif //vtk_m_exec_cuda_internal_WrappedOperators_h

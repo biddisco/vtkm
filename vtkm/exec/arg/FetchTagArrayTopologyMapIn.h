@@ -22,6 +22,7 @@
 
 #include <vtkm/exec/arg/AspectTagDefault.h>
 #include <vtkm/exec/arg/Fetch.h>
+#include <vtkm/exec/arg/ThreadIndicesTopologyMap.h>
 
 #include <vtkm/TopologyElementTag.h>
 
@@ -57,9 +58,12 @@ namespace detail {
 template<typename ConnectivityType, typename FieldExecObjectType>
 struct FetchArrayTopologyMapInImplementation
 {
-  // The connectivity classes are expected to have an IndicesType that is
-  // is Vec-like class that will be returned from a GetIndices method.
-  typedef typename ConnectivityType::IndicesType IndexVecType;
+  typedef vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>
+      ThreadIndicesType;
+
+  // ThreadIndicesTopologyMap has special "from" indices that are stored in a
+  // Vec-like object.
+  typedef typename ThreadIndicesType::IndicesFromType IndexVecType;
 
   // The FieldExecObjectType is expected to behave like an ArrayPortal.
   typedef FieldExecObjectType PortalType;
@@ -67,12 +71,16 @@ struct FetchArrayTopologyMapInImplementation
   typedef vtkm::exec::internal::VecFromPortalPermute<
       IndexVecType,PortalType> ValueType;
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
-  static ValueType Load(vtkm::Id index,
-                        const ConnectivityType &connectivity,
+  static ValueType Load(const ThreadIndicesType &indices,
                         const FieldExecObjectType &field)
   {
-    return ValueType(connectivity.GetIndices(index), field);
+    // It is important that we give the VecFromPortalPermute (ValueType) a
+    // pointer that will stay around during the time the Vec is valid. Thus, we
+    // should make sure that indices is a reference that goes up the stack at
+    // least as far as the returned VecFromPortalPermute is used.
+    return ValueType(indices.GetIndicesFromPointer(), field);
   }
 };
 
@@ -88,6 +96,17 @@ make_VecRectilinearPointCoordinates(
         origin[1],
         origin[2]);
   return vtkm::VecRectilinearPointCoordinates<1>(offsetOrigin, spacing);
+}
+
+VTKM_EXEC_EXPORT
+vtkm::VecRectilinearPointCoordinates<1>
+make_VecRectilinearPointCoordinates(
+    const vtkm::Vec<vtkm::FloatDefault,3> &origin,
+    const vtkm::Vec<vtkm::FloatDefault,3> &spacing,
+    vtkm::Id logicalId)
+{
+  return make_VecRectilinearPointCoordinates(
+        origin, spacing, vtkm::Vec<vtkm::Id,1>(logicalId));
 }
 
 VTKM_EXEC_EXPORT
@@ -129,13 +148,15 @@ struct FetchArrayTopologyMapInImplementation<
   typedef vtkm::exec::ConnectivityStructured<vtkm::TopologyElementTagPoint,
                                              vtkm::TopologyElementTagCell,
                                              NumDimensions> ConnectivityType;
+  typedef vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>
+      ThreadIndicesType;
 
   typedef vtkm::VecRectilinearPointCoordinates<NumDimensions> ValueType;
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
   static ValueType Load(
-      vtkm::Id index,
-      const ConnectivityType &connectivity,
+      const ThreadIndicesType &indices,
       const vtkm::internal::ArrayPortalUniformPointCoordinates &field)
   {
     // This works because the logical cell index is the same as the logical
@@ -143,54 +164,39 @@ struct FetchArrayTopologyMapInImplementation<
     return vtkm::exec::arg::detail::make_VecRectilinearPointCoordinates(
           field.GetOrigin(),
           field.GetSpacing(),
-          connectivity.FlatToLogicalCellIndex(index));
+          indices.GetIndexLogical());
   }
 };
 
 } // namespace detail
 
-template<typename Invocation, vtkm::IdComponent ParameterIndex>
+template<typename ConnectivityType, typename ExecObjectType>
 struct Fetch<
     vtkm::exec::arg::FetchTagArrayTopologyMapIn,
     vtkm::exec::arg::AspectTagDefault,
-    Invocation,
-    ParameterIndex>
+    vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>,
+    ExecObjectType>
 {
-  // The parameter for the input domain is stored in the Invocation. (It is
-  // also in the worklet, but it is safer to get it from the Invocation
-  // in case some other dispatch operation had to modify it.)
-  static const vtkm::IdComponent InputDomainIndex =
-      Invocation::InputDomainIndex;
-
-  // Assuming that this fetch is used in a topology map, which is its
-  // intention, InputDomainIndex points to a connectivity object. Thus,
-  // ConnectivityType is one of the vtkm::exec::Connectivity* classes.
-  typedef typename Invocation::ParameterInterface::
-      template ParameterType<InputDomainIndex>::type ConnectivityType;
-
-  // The execution object associated with this parameter is expected to be
-  // an array portal containing the field values.
-  typedef typename Invocation::ParameterInterface::
-      template ParameterType<ParameterIndex>::type ExecObjectType;
+  typedef vtkm::exec::arg::ThreadIndicesTopologyMap<ConnectivityType>
+      ThreadIndicesType;
 
   typedef detail::FetchArrayTopologyMapInImplementation<
       ConnectivityType,ExecObjectType> Implementation;
 
   typedef typename Implementation::ValueType ValueType;
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
-  ValueType Load(vtkm::Id index, const Invocation &invocation) const
+  ValueType Load(const ThreadIndicesType &indices,
+                 const ExecObjectType &field) const
   {
-    const ConnectivityType &connectivity =
-        invocation.Parameters.template GetParameter<InputDomainIndex>();
-    const ExecObjectType &field =
-        invocation.Parameters.template GetParameter<ParameterIndex>();
-
-    return Implementation::Load(index, connectivity, field);
+    return Implementation::Load(indices, field);
   }
 
   VTKM_EXEC_EXPORT
-  void Store(vtkm::Id, const Invocation &, const ValueType &) const
+  void Store(const ThreadIndicesType &,
+             const ExecObjectType &,
+             const ValueType &) const
   {
     // Store is a no-op for this fetch.
   }

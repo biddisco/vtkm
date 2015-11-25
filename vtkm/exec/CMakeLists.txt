@@ -24,11 +24,13 @@ set(headers
   CellInterpolate.h
   ConnectivityExplicit.h
   ConnectivityStructured.h
+  ConnectivityStructuredPermuted.h
   ExecutionObjectBase.h
   ExecutionWholeArray.h
   FunctorBase.h
   NewtonsMethod.h
   ParametricCoordinates.h
+
   )
 
 #-----------------------------------------------------------------------------
@@ -39,9 +41,7 @@ vtkm_declare_headers(${impl_headers} ${headers})
 
 
 #-----------------------------------------------------------------------------
-if (VTKm_ENABLE_CUDA)
-  add_subdirectory(cuda)
-endif ()
+add_subdirectory(cuda)
 
 
 #-----------------------------------------------------------------------------
