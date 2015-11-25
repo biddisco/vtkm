@@ -23,13 +23,23 @@ set(headers
   WorkletMapField.h
   DispatcherMapTopology.h
   WorkletMapTopology.h
+
   AverageByKey.h
   CellAverage.h
   Clip.h
   ExternalFaces.h
+  FieldHistogram.h
+  FieldStatistics.h
   IsosurfaceUniformGrid.h
   MarchingCubesDataTables.h
   PointElevation.h
+  ScatterCounting.h
+  ScatterIdentity.h
+  ScatterUniform.h
+  StreamLineUniformGrid.h
+  TetrahedralizeExplicitGrid.h
+  TetrahedralizeUniformGrid.h
+  Threshold.h
   VertexClustering.h
   )
 

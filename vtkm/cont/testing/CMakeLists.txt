@@ -24,6 +24,8 @@ set(headers
   TestingArrayHandles.h
   TestingComputeBounds.h
   TestingDeviceAdapter.h
+  TestingDataSetExplicit.h
+  TestingDataSetSingleType.h
   TestingFancyArrayHandles.h
   )
 
@@ -45,6 +47,7 @@ set(unit_tests
   UnitTestDataSetRegular.cxx
   UnitTestDataSetExplicit.cxx
   UnitTestDataSetSingleType.cxx
+  UnitTestDataSetPermutation.cxx
   UnitTestDeviceAdapterAlgorithmDependency.cxx
   UnitTestDeviceAdapterAlgorithmGeneral.cxx
   UnitTestDeviceAdapterSerial.cxx

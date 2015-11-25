@@ -22,26 +22,15 @@ if (VTKm_Serial_initialize_complete)
   return()
 endif (VTKm_Serial_initialize_complete)
 
-# Find the Boost library.
-if (NOT VTKm_Serial_FOUND)
-  if(NOT Boost_FOUND)
-    find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION})
-  endif()
+vtkm_configure_device(Base)
 
-  if (NOT Boost_FOUND)
-    message(STATUS "Boost not found")
-    set(VTKm_Serial_FOUND FALSE)
-  else(NOT Boost_FOUND)
-    set(VTKm_Serial_FOUND TRUE)
-  endif (NOT Boost_FOUND)
-endif (NOT VTKm_Serial_FOUND)
+if (VTKm_Base_FOUND)
+  # Serial only relies on base configuration
+  set(VTKm_Serial_FOUND TRUE)
+else () # !VTKm_Base_FOUND
+  set(VTKm_Serial_FOUND)
+endif ()
 
-# Set up all these dependent packages (if they were all found).
 if (VTKm_Serial_FOUND)
-  include_directories(
-    ${Boost_INCLUDE_DIRS}
-    ${VTKm_INCLUDE_DIRS}
-    )
-
   set(VTKm_Serial_initialize_complete TRUE)
-endif (VTKm_Serial_FOUND)
+endif ()

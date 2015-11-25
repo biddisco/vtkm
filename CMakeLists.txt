@@ -18,7 +18,25 @@
 ##  this software.
 ##============================================================================
 
-cmake_minimum_required(VERSION 2.8.10)
+cmake_minimum_required(VERSION 2.8.11)
+
+#setup policy rules for CMake 3.0 while we have a minimum required of 2.8.X
+if(POLICY CMP0025)
+  cmake_policy(SET CMP0025 NEW)#Clang and AppleClang are different compiler ids
+  cmake_policy(SET CMP0042 NEW)#Enable RPATH on OSX
+endif()
+
+#setup policy rules for CMake 3.1 while we have a minimum required of 2.8.X
+if(POLICY CMP0054)
+  cmake_policy(SET CMP0053 NEW)#Enable faster parser engine
+  cmake_policy(SET CMP0054 NEW)#simplify if() argument expansion
+endif()
+
+#setup policy rules for CMake 3.3 while we have a minimum required of 2.8.X
+if(POLICY CMP0063)
+  cmake_policy(SET CMP0063 NEW)#Honor visibility properties for all targets
+endif()
+
 project (VTKm)
 
 set(VTKm_MAJOR_VERSION 0)
@@ -60,6 +78,14 @@ endif ()
 
 #-----------------------------------------------------------------------------
 # Add supplemental compiler warnings, and GCC visibility support.
+# include export header modules so that we can easily control symbol exporting
+# VTK-m is setup by default not to export symbols unless explicitly stated.
+# We prefer to only export symbols of a small set of user facing classes,
+# rather than exporting all symbols. In practice we will try to not export
+# symbols for any third party library
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+include(GenerateExportHeader)
 include(CMake/VTKmCompilerExtras.cmake)
 
 #-----------------------------------------------------------------------------
@@ -86,12 +112,14 @@ endif()
 #-----------------------------------------------------------------------------
 # Set up devices selected.
 vtkm_configure_device(Serial)
-if (VTKm_ENABLE_CUDA)
-  vtkm_configure_device(Cuda)
-endif (VTKm_ENABLE_CUDA)
 if (VTKm_ENABLE_TBB)
-  vtkm_configure_device(TBB)
+  vtkm_configure_device(TBB REQUIRED)
 endif (VTKm_ENABLE_TBB)
+if (VTKm_ENABLE_CUDA)
+  vtkm_configure_device(CUDA REQUIRED)
+  cuda_include_directories(${VTKm_INCLUDE_DIRS})
+endif (VTKm_ENABLE_CUDA)
+include_directories(${VTKm_INCLUDE_DIRS})
 
 #-----------------------------------------------------------------------------
 
@@ -278,7 +306,7 @@ install(
   FILES
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmSerial.cmake
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmTBB.cmake
-    ${VTKm_SOURCE_DIR}/CMake/UseVTKmCuda.cmake
+    ${VTKm_SOURCE_DIR}/CMake/UseVTKmCUDA.cmake
   DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
   )
 

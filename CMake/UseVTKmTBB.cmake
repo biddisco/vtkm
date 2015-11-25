@@ -22,36 +22,37 @@ if (VTKm_TBB_initialize_complete)
   return()
 endif (VTKm_TBB_initialize_complete)
 
-#-----------------------------------------------------------------------------
-# Find TBB.
-#-----------------------------------------------------------------------------
-if (NOT VTKm_TBB_FOUND)
-  find_package(TBB REQUIRED)
-  set (VTKm_TBB_FOUND ${TBB_FOUND})
-endif()
+vtkm_configure_device(Base)
 
-#-----------------------------------------------------------------------------
-# Find the Boost library.
-#-----------------------------------------------------------------------------
-if (VTKm_TBB_FOUND)
-  if(NOT Boost_FOUND)
-    find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION})
+if (VTKm_Base_FOUND)
+
+  set(VTKm_TBB_FOUND ${VTKm_ENABLE_TBB})
+  if (NOT VTKm_TBB_FOUND)
+    message(STATUS "This build of VTK-m does not include TBB.")
+  endif ()
+
+  #---------------------------------------------------------------------------
+  # Find TBB.
+  #---------------------------------------------------------------------------
+  if (VTKm_TBB_FOUND)
+    find_package(TBB)
+    if (NOT TBB_FOUND)
+      message(STATUS "TBB not found")
+      set(VTKm_TBB_FOUND)
+    endif ()
   endif()
 
-  if (NOT Boost_FOUND)
-    message(STATUS "Boost not found")
-    set(VTKm_TBB_FOUND FALSE)
-  endif()
-endif()
+endif ()
 
 #-----------------------------------------------------------------------------
 # Set up all these dependent packages (if they were all found).
 #-----------------------------------------------------------------------------
 if (VTKm_TBB_FOUND)
-  include_directories(
-    ${Boost_INCLUDE_DIRS}
+  set(VTKm_INCLUDE_DIRS
     ${VTKm_INCLUDE_DIRS}
     ${TBB_INCLUDE_DIRS}
-  )
+    )
+  set(VTKm_LIBRARIES ${TBB_LIBRARIES})
+
   set(VTKm_TBB_initialize_complete TRUE)
 endif()

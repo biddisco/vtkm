@@ -217,11 +217,18 @@ public:
 
     if (numberOfValues <= 0) { return initialValue; }
 
-    // Shift right by one
+    // Shift right by one, by iterating backwards. We are required to iterate
+    //backwards so that the algorithm works correctly when the input and output
+    //are the same array, otherwise you just propagate the first element
+    //to all elements
+    //Note: We explicitly do not use std::copy_backwards for good reason.
+    //The ICC compiler has been found to improperly optimize the copy_backwards
+    //into a standard copy, causing the above issue.
     T lastValue = inputPortal.Get(numberOfValues - 1);
-    std::copy_backward(vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
-                       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal) - 1,
-                       vtkm::cont::ArrayPortalToIteratorEnd(outputPortal));
+    for(vtkm::Id i=(numberOfValues-1); i >= 1; --i)
+      {
+      outputPortal.Set(i, inputPortal.Get(i-1));
+      }
     outputPortal.Set(0, initialValue);
 
     std::partial_sum(vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
@@ -251,7 +258,8 @@ private:
       : Functor(functor) {  }
 
     //needed for when calling from schedule on a range
-    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
+    template<typename T>
+    VTKM_EXEC_EXPORT void operator()(const T& index) const
     {
       this->Functor(index);
     }
@@ -302,17 +310,18 @@ public:
 
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
-    //use a const variable to hint to compiler this doesn't change
+    vtkm::Id3 index;
     for(vtkm::Id k=0; k < rangeMax[2]; ++k)
       {
-      vtkm::Id index = k * rangeMax[1] * rangeMax[0];
+      index[2] = k;
       for(vtkm::Id j=0; j < rangeMax[1]; ++j)
         {
+        index[1] = j;
         for(vtkm::Id i=0; i < rangeMax[0]; ++i)
           {
-          kernel( index + i );
+          index[0] = i;
+          kernel( index );
           }
-        index += rangeMax[0];
         }
       }
 
@@ -368,7 +377,7 @@ private:
 
     ZipHandleType zipHandle =
                     vtkm::cont::make_ArrayHandleZip(keys,values);
-    Sort(zipHandle,KeyCompare<T,U,BinaryCompare>(binary_compare));
+    Sort(zipHandle,internal::KeyCompare<T,U,BinaryCompare>(binary_compare));
   }
 
 public:

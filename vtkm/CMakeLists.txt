@@ -26,6 +26,7 @@ set(headers
   CellShape.h
   CellTraits.h
   Extent.h
+  ImplicitFunctions.h
   ListTag.h
   Math.h
   Matrix.h
@@ -68,3 +69,6 @@ add_subdirectory(worklet)
 #add the benchmarking folder
 add_subdirectory(benchmarking)
 
+#-----------------------------------------------------------------------------
+#add the io folder
+add_subdirectory(io)

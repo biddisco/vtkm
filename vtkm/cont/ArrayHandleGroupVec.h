@@ -326,29 +326,38 @@ class ArrayHandleGroupVec
   VTKM_IS_ARRAY_HANDLE(SourceArrayHandleType);
 
 public:
-  typedef vtkm::cont::internal::StorageTagGroupVec<
-    SourceArrayHandleType, NUM_COMPONENTS> StorageTag;
+  VTKM_ARRAY_HANDLE_SUBCLASS(
+        ArrayHandleGroupVec,
+        (ArrayHandleGroupVec<SourceArrayHandleType, NUM_COMPONENTS>),
+        (vtkm::cont::ArrayHandle<
+           vtkm::Vec<typename SourceArrayHandleType::ValueType, NUM_COMPONENTS>,
+           vtkm::cont::internal::StorageTagGroupVec<
+             SourceArrayHandleType, NUM_COMPONENTS> >));
+
   typedef typename SourceArrayHandleType::ValueType ComponentType;
-  typedef vtkm::cont::ArrayHandle<
-    vtkm::Vec<ComponentType,NUM_COMPONENTS>, StorageTag> Superclass;
-  typedef typename Superclass::ValueType ValueType;
 
 private:
   typedef vtkm::cont::internal::Storage<ValueType, StorageTag> StorageType;
 
 public:
   VTKM_CONT_EXPORT
-  ArrayHandleGroupVec() {  }
-
-  VTKM_CONT_EXPORT
   ArrayHandleGroupVec(const SourceArrayHandleType &sourceArray)
     : Superclass(StorageType(sourceArray)) {  }
-
-  VTKM_CONT_EXPORT
-  ArrayHandleGroupVec(
-      const vtkm::cont::ArrayHandle<ValueType,StorageTag> &source)
-    : Superclass(source) {  }
 };
+
+/// \c make_ArrayHandleGroupVec is convenience function to generate an
+/// ArrayHandleGroupVec. It takes in an ArrayHandle and the number of components
+/// (as a specified template parameter), and returns an array handle with
+/// consecutive entries grouped in a Vec.
+///
+template<vtkm::IdComponent NUM_COMPONENTS,
+         typename ArrayHandleType>
+VTKM_CONT_EXPORT
+vtkm::cont::ArrayHandleGroupVec<ArrayHandleType, NUM_COMPONENTS>
+make_ArrayHandleGroupVec(const ArrayHandleType &array)
+{
+  return vtkm::cont::ArrayHandleGroupVec<ArrayHandleType,NUM_COMPONENTS>(array);
+}
 
 }
 } // namespace vtkm::cont

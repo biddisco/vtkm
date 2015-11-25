@@ -20,8 +20,7 @@
 
 #include <vtkm/exec/arg/FetchTagArrayDirectInOut.h>
 
-#include <vtkm/internal/FunctionInterface.h>
-#include <vtkm/internal/Invocation.h>
+#include <vtkm/exec/arg/testing/ThreadIndicesTesting.h>
 
 #include <vtkm/testing/Testing.h>
 
@@ -57,20 +56,19 @@ struct TestPortal
   }
 };
 
-struct NullParam {  };
-
-template<vtkm::IdComponent ParamIndex, typename T>
+template<typename T>
 struct FetchArrayDirectInTests
 {
 
-  template<typename Invocation>
-  void TryInvocation(const Invocation &invocation) const
+  void operator()()
   {
+    TestPortal<T> execObject;
+
     typedef vtkm::exec::arg::Fetch<
         vtkm::exec::arg::FetchTagArrayDirectInOut,
         vtkm::exec::arg::AspectTagDefault,
-        Invocation,
-        ParamIndex> FetchType;
+        vtkm::exec::arg::ThreadIndicesTesting,
+        TestPortal<T> > FetchType;
 
     FetchType fetch;
 
@@ -78,35 +76,20 @@ struct FetchArrayDirectInTests
 
     for (vtkm::Id index = 0; index < ARRAY_SIZE; index++)
     {
-      T value = fetch.Load(index, invocation);
+      vtkm::exec::arg::ThreadIndicesTesting indices(index);
+
+      T value = fetch.Load(indices, execObject);
       VTKM_TEST_ASSERT(test_equal(value, TestValue(index, T())),
                        "Got invalid value from Load.");
 
       value = T(T(2)*value);
 
-      fetch.Store(index, invocation, value);
+      fetch.Store(indices, execObject, value);
     }
 
     VTKM_TEST_ASSERT(g_NumSets == ARRAY_SIZE,
                      "Array portal's set not called correct number of times."
                      "Store method must be wrong.");
-  }
-
-  void operator()() const
-  {
-    std::cout << "Trying ArrayDirectInOut fetch on parameter " << ParamIndex
-                 << " with type " << vtkm::testing::TypeName<T>::Name()
-                 << std::endl;
-
-    typedef vtkm::internal::FunctionInterface<
-        void(NullParam,NullParam,NullParam,NullParam,NullParam)>
-        BaseFunctionInterface;
-
-    this->TryInvocation(vtkm::internal::make_Invocation<1>(
-                          BaseFunctionInterface().Replace<ParamIndex>(
-                            TestPortal<T>()),
-                          NullParam(),
-                          NullParam()));
   }
 
 };
@@ -116,11 +99,7 @@ struct TryType
   template<typename T>
   void operator()(T) const
   {
-    FetchArrayDirectInTests<1,T>()();
-    FetchArrayDirectInTests<2,T>()();
-    FetchArrayDirectInTests<3,T>()();
-    FetchArrayDirectInTests<4,T>()();
-    FetchArrayDirectInTests<5,T>()();
+    FetchArrayDirectInTests<T>()();
   }
 };
 

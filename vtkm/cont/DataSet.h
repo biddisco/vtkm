@@ -40,6 +40,14 @@ public:
   }
 
   VTKM_CONT_EXPORT
+  void Clear()
+  {
+    this->CoordSystems.clear();
+    this->Fields.clear();
+    this->CellSets.clear();
+  }
+
+  VTKM_CONT_EXPORT
   void AddField(Field field)
   {
     this->Fields.push_back(field);
@@ -120,6 +128,20 @@ public:
     VTKM_ASSERT_CONT((index >= 0) &&
                      (index < this->GetNumberOfCellSets()));
     return this->CellSets[static_cast<std::size_t>(index)];
+  }
+
+  VTKM_CONT_EXPORT
+  vtkm::cont::DynamicCellSet GetCellSet(const std::string &name)
+      const
+  {
+    for (std::size_t i=0; i < static_cast<size_t>(this->GetNumberOfCellSets()); ++i)
+    {
+      if (this->CellSets[i].GetCellSet().GetName() == name)
+      {
+        return this->CellSets[i];
+      }
+    }
+    throw vtkm::cont::ErrorControlBadValue("No cell set with requested name");
   }
 
   VTKM_CONT_EXPORT
