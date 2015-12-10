@@ -337,8 +337,12 @@ public:
     // error and setting the message buffer as expected.
     try
       {
-      for (vtkm::Id index = range.begin(); index < range.end(); index++)
+      const vtkm::Id start = range.begin();
+      const vtkm::Id end = range.end();
+VTKM_VECTORIZATION_PRE_LOOP
+      for (vtkm::Id index = start; index != end; index++)
         {
+VTKM_VECTORIZATION_IN_LOOP
         this->Functor(index);
         }
       }
@@ -386,8 +390,12 @@ public:
         for( vtkm::Id j=range.rows().begin(); j!=range.rows().end(); ++j)
           {
           index[1] = j;
-          for( vtkm::Id i=range.cols().begin(); i!=range.cols().end(); ++i)
+          const vtkm::Id start =range.cols().begin();
+          const vtkm::Id end = range.cols().end();
+VTKM_VECTORIZATION_PRE_LOOP
+          for( vtkm::Id i=start; i != end; ++i)
             {
+VTKM_VECTORIZATION_IN_LOOP
             index[0] = i;
             this->Functor( index );
             }
@@ -435,6 +443,13 @@ public:
     // error and setting the message buffer as expected.
     try
       {
+#ifdef VTKM_ENABLE_VECTORIZATION
+#if defined(VTKM_CLANG)
+    #pragma clang loop vectorize(enable)
+#elif defined(VTKM_ICC)
+    #pragma simd
+#endif
+#endif
       for (vtkm::Id i = range.begin(); i < range.end(); i++)
         {
         OutputPortal.Set( i, ValuesPortal.Get(IndexPortal.Get(i)) );
@@ -481,4 +496,3 @@ VTKM_CONT_EXPORT static void ScatterPortal(InputPortalType  inputPortal,
 }
 }
 #endif //vtk_m_cont_tbb_internal_FunctorsTBB_h
-

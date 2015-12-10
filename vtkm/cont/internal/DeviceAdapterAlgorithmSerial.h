@@ -225,8 +225,12 @@ public:
     //The ICC compiler has been found to improperly optimize the copy_backwards
     //into a standard copy, causing the above issue.
     T lastValue = inputPortal.Get(numberOfValues - 1);
+
+VTKM_VECTORIZATION_PRE_LOOP
     for(vtkm::Id i=(numberOfValues-1); i >= 1; --i)
       {
+VTKM_VECTORIZATION_IN_LOOP
+      //nothing for gcc as input & output could be the same
       outputPortal.Set(i, inputPortal.Get(i-1));
       }
     outputPortal.Set(0, initialValue);
@@ -284,8 +288,11 @@ public:
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
     const vtkm::Id size = numInstances;
+
+VTKM_VECTORIZATION_PRE_LOOP
     for(vtkm::Id i=0; i < size; ++i)
       {
+VTKM_VECTORIZATION_IN_LOOP
       kernel(i);
       }
 
@@ -317,8 +324,10 @@ public:
       for(vtkm::Id j=0; j < rangeMax[1]; ++j)
         {
         index[1] = j;
+VTKM_VECTORIZATION_PRE_LOOP
         for(vtkm::Id i=0; i < rangeMax[0]; ++i)
           {
+VTKM_VECTORIZATION_IN_LOOP
           index[0] = i;
           kernel( index );
           }
@@ -353,8 +362,10 @@ private:
     PortalI indexPortal = index.PrepareForInput(Device());
     PortalVout valuesOutPortal = values_out.PrepareForOutput(n, Device());
 
+VTKM_VECTORIZATION_PRE_LOOP
     for (vtkm::Id i=0; i<n; i++)
     {
+VTKM_VECTORIZATION_IN_LOOP
        valuesOutPortal.Set( i, valuesPortal.Get(indexPortal.Get(i)) );
     }
   }

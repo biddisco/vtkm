@@ -310,6 +310,14 @@ install(
   DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
   )
 
+# Install support files.
+install(
+  FILES
+    ${VTKm_SOURCE_DIR}/CMake/VTKmCompilerOptimizations.cmake
+  DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
+  )
+
+
 
 # Enable CPack packaging
 set(CPACK_PACKAGE_DESCRIPTION_FILE ${VTKm_SOURCE_DIR}/README.md)

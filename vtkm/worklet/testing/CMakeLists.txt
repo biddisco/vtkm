@@ -24,15 +24,17 @@ set(unit_tests
   UnitTestExternalFaces.cxx
   UnitTestFieldHistogram.cxx
   UnitTestFieldStatistics.cxx
-  UnitTestIsosurfaceUniformGrid.cxx
+  UnitTestMarchingCubes.cxx
   UnitTestPointElevation.cxx
   UnitTestScatterCounting.cxx
   UnitTestSplatKernels.cxx
+  UnitTestStreamLineUniformGrid.cxx
   UnitTestTetrahedralizeExplicitGrid.cxx
   UnitTestTetrahedralizeUniformGrid.cxx
   UnitTestThreshold.cxx
   UnitTestWorkletMapField.cxx
   UnitTestWorkletMapFieldExecArg.cxx
+  UnitTestWorkletMapFieldWholeArray.cxx
   UnitTestWorkletMapTopologyExplicit.cxx
   UnitTestWorkletMapTopologyRegular.cxx
   UnitTestVertexClustering.cxx
