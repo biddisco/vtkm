@@ -55,9 +55,6 @@
 // stop timer
 # define END_TIMER_BLOCK(name) \
     std::cout << #name " : elapsed : " << timer_##name.GetElapsedTime() << "\n";
-#else
-# define START_TIMER_BLOCK(name)
-# define END_TIMER_BLOCK(name)
 #endif
 
 //----------------------------------------------------------------------------
