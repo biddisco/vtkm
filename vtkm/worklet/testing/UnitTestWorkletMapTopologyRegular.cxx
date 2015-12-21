@@ -164,10 +164,10 @@ static void TestStructuredUniformPointCoords();
 
 void TestWorkletMapTopologyRegular()
 {
-    typedef vtkm::cont::internal::DeviceAdapterTraits<
+    typedef vtkm::cont::DeviceAdapterTraits<
         VTKM_DEFAULT_DEVICE_ADAPTER_TAG> DeviceAdapterTraits;
     std::cout << "Testing Topology Worklet ( Regular ) on device adapter: "
-              << DeviceAdapterTraits::GetId() << std::endl;
+              << DeviceAdapterTraits::GetName() << std::endl;
 
     TestMaxPointOrCell();
     TestAvgPointToCell();

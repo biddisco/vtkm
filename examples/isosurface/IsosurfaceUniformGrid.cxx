@@ -233,12 +233,11 @@ void mouseCall(int button, int state, int x, int y)
 // Compute and render an isosurface for a uniform grid example
 int main(int argc, char* argv[])
 {
-  typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapter>
-                                                        DeviceAdapterTraits;
+  typedef vtkm::cont::DeviceAdapterTraits<DeviceAdapter> DeviceAdapterTraits;
   typedef vtkm::cont::CellSetStructured<3> CellSet;
 
   std::cout << "Running IsosurfaceUniformGrid example on device adapter: "
-            << DeviceAdapterTraits::GetId() << std::endl;
+            << DeviceAdapterTraits::GetName() << std::endl;
 
   vtkm::cont::DataSet dataSet = MakeIsosurfaceTestDataSet(dims);
   vtkm::cont::ArrayHandle<vtkm::Float32> fieldArray;
