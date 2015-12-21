@@ -22,6 +22,13 @@
 
 #include <vtkm/cont/internal/DeviceAdapterTag.h>
 
-VTKM_CREATE_DEVICE_ADAPTER(HPX);
+//We always create the tbb tag when included, but we only mark it as
+//a valid tag when VTKM_ENABLE_HPX is true. This is for easier development
+//of multi-backend systems
+#ifdef VTKM_ENABLE_HPX
+VTKM_VALID_DEVICE_ADAPTER(HPX);
+#else
+VTKM_INVALID_DEVICE_ADAPTER(HPX);
+#endif
 
 #endif //vtk_m_cont_internal_DeviceAdapterTagHPX_h

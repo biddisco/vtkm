@@ -157,6 +157,11 @@
 #cmakedefine VTKM_ENABLE_TBB
 #endif
 
+//Mark if we are building with HPX enabled
+#ifndef VTKM_ENABLE_HPX
+#cmakedefine VTKM_ENABLE_HPX
+#endif
+
 //Mark if we are building with interop enabled
 #ifndef VTKM_ENABLE_OPENGL_INTEROP
 #cmakedefine VTKM_ENABLE_OPENGL_INTEROP
