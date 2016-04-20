@@ -35,7 +35,7 @@
 #include <math.h>
 
 //Suppress warnings about glut being deprecated on OSX
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -145,10 +145,10 @@ void displayCall()
   glTranslatef(-0.5f, -0.5f, -0.5f);
 
   // Get the cell set, coordinate system and coordinate data
-  vtkm::cont::CellSetExplicit<> &cellSet = 
-    outDataSet.GetCellSet(0).CastTo<vtkm::cont::CellSetExplicit<> >();
+  vtkm::cont::CellSetExplicit<> cellSet;
+  outDataSet.GetCellSet(0).CopyTo(cellSet);
   const vtkm::cont::DynamicArrayHandleCoordinateSystem &coordArray =
-                                      outDataSet.GetCoordinateSystem(0).GetData();
+                                    outDataSet.GetCoordinateSystem(0).GetData();
 
   vtkm::Id numberOfCells = cellSet.GetNumberOfCells();
   vtkm::Id numberOfPoints = coordArray.GetNumberOfValues();
@@ -247,7 +247,7 @@ int main(int argc, char* argv[])
   // Read vector data at each point of the uniform grid and store
   vtkm::Id nElements = vdims[0] * vdims[1] * vdims[2] * 3;
   float* data = new float[nElements];
-  fread(data, sizeof(float), nElements, pFile);
+  fread(data, sizeof(float), static_cast<std::size_t>(nElements), pFile);
 
   std::vector<vtkm::Vec<vtkm::Float32, 3> > field;
   for (vtkm::Id i = 0; i < nElements; i++)
@@ -259,13 +259,13 @@ int main(int argc, char* argv[])
     field.push_back(Normalize(vecData));
   }
   vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float32, 3> > fieldArray;
-  fieldArray = vtkm::cont::make_ArrayHandle(&field[0], field.size());
+  fieldArray = vtkm::cont::make_ArrayHandle(field);
 
   // Construct the input dataset (uniform) to hold the input and set vector data
   vtkm::cont::DataSet inDataSet;
   vtkm::cont::ArrayHandleUniformPointCoordinates coordinates(vdims);
-  inDataSet.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
-  inDataSet.AddField(vtkm::cont::Field("vecData", 1, vtkm::cont::Field::ASSOC_POINTS, fieldArray));
+  inDataSet.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", coordinates));
+  inDataSet.AddField(vtkm::cont::Field("vecData", vtkm::cont::Field::ASSOC_POINTS, fieldArray));
 
   vtkm::cont::CellSetStructured<3> inCellSet("cells");
   inCellSet.SetPointDimensions(vtkm::make_Vec(vdims[0], vdims[1], vdims[2]));
@@ -299,6 +299,6 @@ int main(int argc, char* argv[])
   return 0;
 }
 
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic pop
 #endif

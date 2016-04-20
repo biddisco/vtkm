@@ -20,12 +20,13 @@
 ##
 ##=============================================================================
 
-if(VTKm_Cuda_FOUND)
+if(VTKm_CUDA_FOUND)
   cuda_add_executable(MultiBackend MultiBackend.cu)
 else()
   add_executable(MultiBackend MultiBackend.cxx)
 endif()
 
+target_compile_options(MultiBackend PRIVATE ${VTKm_COMPILE_OPTIONS})
 if(VTKm_TBB_FOUND)
    target_link_libraries(MultiBackend  ${VTKm_LIBRARIES})
 endif()

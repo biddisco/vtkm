@@ -21,13 +21,14 @@
 ##=============================================================================
 
 add_executable(Clipping_SERIAL Clipping.cxx)
+target_compile_options(Clipping_SERIAL PRIVATE ${VTKm_COMPILE_OPTIONS})
 
 set_property(
   TARGET Clipping_SERIAL
   APPEND
   PROPERTY COMPILE_DEFINITIONS "VTKM_DEVICE_ADAPTER=VTKM_DEVICE_ADAPTER_SERIAL")
 
-if(VTKm_Cuda_FOUND)
+if(VTKm_CUDA_FOUND)
   set (cudaSource "${CMAKE_CURRENT_BINARY_DIR}/Clipping.cu")
   configure_file(Clipping.cxx ${cudaSource} COPYONLY)
 
@@ -35,6 +36,7 @@ if(VTKm_Cuda_FOUND)
   vtkm_disable_troublesome_thrust_warnings()
 
   cuda_add_executable(Clipping_CUDA ${cudaSource})
+  target_compile_options(Clipping_CUDA PRIVATE ${VTKm_COMPILE_OPTIONS})
 
   set(CUDA_NVCC_FLAGS ${old_nvcc_flags})
 
@@ -44,6 +46,7 @@ if(VTKm_ENABLE_TBB)
   add_executable(Clipping_TBB Clipping.cxx)
   target_include_directories(Clipping_TBB PRIVATE ${VTKm_INCLUDE_DIRS})
   target_link_libraries(Clipping_TBB ${VTKm_LIBRARIES})
+  target_compile_options(Clipping_TBB PRIVATE PRIVATE ${VTKm_COMPILE_OPTIONS})
   set_property(
     TARGET Clipping_TBB
     APPEND

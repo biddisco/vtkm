@@ -25,11 +25,11 @@ set(headers
   BinaryOperators.h
   CellShape.h
   CellTraits.h
-  Extent.h
   ImplicitFunctions.h
   ListTag.h
   Math.h
   Matrix.h
+  NewtonsMethod.h
   Pair.h
   StaticAssert.h
   TopologyElementTag.h
@@ -53,8 +53,14 @@ add_subdirectory(testing)
 add_subdirectory(internal)
 
 if(VTKm_ENABLE_OPENGL_INTEROP)
-  add_subdirectory(opengl)
+  add_subdirectory(interop)
 endif(VTKm_ENABLE_OPENGL_INTEROP)
+
+#-----------------------------------------------------------------------------
+# Build rendering
+if(VTKm_BUILD_RENDERING)
+  add_subdirectory(rendering)
+endif(VTKm_BUILD_RENDERING)
 
 #-----------------------------------------------------------------------------
 #add the control and exec folders
@@ -64,6 +70,10 @@ add_subdirectory(exec)
 #-----------------------------------------------------------------------------
 #add the worklet folder
 add_subdirectory(worklet)
+
+#-----------------------------------------------------------------------------
+#add the filter folder
+add_subdirectory(filter)
 
 #-----------------------------------------------------------------------------
 #add the benchmarking folder

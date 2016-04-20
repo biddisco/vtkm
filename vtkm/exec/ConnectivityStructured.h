@@ -74,7 +74,7 @@ public:
   // is not a cell?
   typedef typename InternalsType::CellShapeTag CellShapeTag;
   VTKM_EXEC_EXPORT
-  CellShapeTag GetCellShape(vtkm::Id=0) const {
+  CellShapeTag GetCellShape(vtkm::Id) const {
     return CellShapeTag();
   }
 
@@ -113,6 +113,12 @@ public:
       const SchedulingRangeType &logicalToIndex) const
   {
     return Helper::LogicalToFlatToIndex(this->Internals, logicalToIndex);
+  }
+
+  VTKM_EXEC_CONT_EXPORT
+  vtkm::Vec<vtkm::Id,Dimension> GetPointDimensions() const
+  {
+    return this->Internals.GetPointDimensions();
   }
 
 private:

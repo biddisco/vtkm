@@ -31,12 +31,10 @@
 #include <vtkm/cont/tbb/internal/DeviceAdapterTagTBB.h>
 #include <vtkm/cont/tbb/internal/FunctorsTBB.h>
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
-#include <vtkm/Extent.h>
 
 VTKM_THIRDPARTY_PRE_INCLUDE
 
-// gcc || clang
-#if  defined(_WIN32)
+#if  defined(VTKM_MSVC)
 // TBB includes windows.h, which clobbers min and max functions so we
 // define NOMINMAX to fix that problem. We also include WIN32_LEAN_AND_MEAN
 // to reduce the number of macros and objects windows.h imports as those also
@@ -62,7 +60,8 @@ VTKM_THIRDPARTY_PRE_INCLUDE
 #include <tbb/partitioner.h>
 #include <tbb/tick_count.h>
 
-#if defined(_WIN32)
+#if defined(VTKM_MSVC)
+#include <Windows.h>
 #undef WIN32_LEAN_AND_MEAN
 #undef NOMINMAX
 #endif
@@ -229,7 +228,7 @@ public:
       /// Move value indexes when sorting and reorder the value array at last
 
       typedef vtkm::cont::ArrayHandle<U,StorageU> ValueType;
-      typedef vtkm::cont::ArrayHandle<vtkm::Id,StorageU> IndexType;
+      typedef vtkm::cont::ArrayHandle<vtkm::Id> IndexType;
       typedef vtkm::cont::ArrayHandleZip<KeyType,IndexType> ZipHandleType;
 
       IndexType indexArray;

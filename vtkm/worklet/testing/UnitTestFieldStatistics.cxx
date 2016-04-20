@@ -28,7 +28,7 @@
 //
 // Make a simple 2D, 10 cell dataset
 //
-vtkm::cont::DataSet Make2DRegularStatDataSet0()
+vtkm::cont::DataSet Make2DUniformStatDataSet0()
 {
     vtkm::cont::DataSet dataSet;
 
@@ -44,16 +44,16 @@ vtkm::cont::DataSet Make2DRegularStatDataSet0()
     vtkm::cont::ArrayHandleUniformPointCoordinates
                   coordinates(vtkm::Id3(xVerts, yVerts, 1));
     dataSet.AddCoordinateSystem(
-       vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
+       vtkm::cont::CoordinateSystem("coordinates", coordinates));
 
     // Create cell scalar
     vtkm::Float32 data[nVerts] = {4,1,10,6,8,2,9,3,5,7};
-    dataSet.AddField(vtkm::cont::Field("data", 1, vtkm::cont::Field::ASSOC_CELL_SET, 
+    dataSet.AddField(vtkm::cont::Field("data", vtkm::cont::Field::ASSOC_CELL_SET,
                            "cells", data, nCells));
 
     vtkm::cont::CellSetStructured<dimension> cellSet("cells");
 
-    //Set regular structure
+    //Set uniform structure
     cellSet.SetPointDimensions(vtkm::make_Vec(xVerts, yVerts));
     dataSet.AddCellSet(cellSet);
 
@@ -63,7 +63,7 @@ vtkm::cont::DataSet Make2DRegularStatDataSet0()
 //
 // Make a simple 2D, 1000 point dataset populated with stat distributions
 //
-vtkm::cont::DataSet Make2DRegularStatDataSet1()
+vtkm::cont::DataSet Make2DUniformStatDataSet1()
 {
     vtkm::cont::DataSet dataSet;
 
@@ -295,31 +295,31 @@ vtkm::cont::DataSet Make2DRegularStatDataSet1()
     vtkm::cont::ArrayHandleUniformPointCoordinates
                   coordinates(vtkm::Id3(xVerts, yVerts, 1));
     dataSet.AddCoordinateSystem(
-       vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
+       vtkm::cont::CoordinateSystem("coordinates", coordinates));
 
     // Set point scalars
-    dataSet.AddField(vtkm::cont::Field("p_poisson", 1, vtkm::cont::Field::ASSOC_POINTS, 
+    dataSet.AddField(vtkm::cont::Field("p_poisson", vtkm::cont::Field::ASSOC_POINTS,
                             poisson, nVerts));
-    dataSet.AddField(vtkm::cont::Field("p_normal", 1, vtkm::cont::Field::ASSOC_POINTS,
+    dataSet.AddField(vtkm::cont::Field("p_normal", vtkm::cont::Field::ASSOC_POINTS,
                             normal, nVerts));
-    dataSet.AddField(vtkm::cont::Field("p_chiSquare", 1, vtkm::cont::Field::ASSOC_POINTS,
+    dataSet.AddField(vtkm::cont::Field("p_chiSquare", vtkm::cont::Field::ASSOC_POINTS,
                             chiSquare, nVerts));
-    dataSet.AddField(vtkm::cont::Field("p_uniform", 1, vtkm::cont::Field::ASSOC_POINTS,
+    dataSet.AddField(vtkm::cont::Field("p_uniform", vtkm::cont::Field::ASSOC_POINTS,
                             uniform, nVerts));
 
     // Set cell scalars
-    dataSet.AddField(vtkm::cont::Field("c_poisson", 1, vtkm::cont::Field::ASSOC_CELL_SET,
+    dataSet.AddField(vtkm::cont::Field("c_poisson", vtkm::cont::Field::ASSOC_CELL_SET,
                            "cells", poisson, nCells));
-    dataSet.AddField(vtkm::cont::Field("c_normal", 1, vtkm::cont::Field::ASSOC_CELL_SET,
+    dataSet.AddField(vtkm::cont::Field("c_normal", vtkm::cont::Field::ASSOC_CELL_SET,
                            "cells", normal, nCells));
-    dataSet.AddField(vtkm::cont::Field("c_chiSquare", 1, vtkm::cont::Field::ASSOC_CELL_SET,
+    dataSet.AddField(vtkm::cont::Field("c_chiSquare", vtkm::cont::Field::ASSOC_CELL_SET,
                            "cells", chiSquare, nCells));
-    dataSet.AddField(vtkm::cont::Field("c_uniform", 1, vtkm::cont::Field::ASSOC_CELL_SET,
+    dataSet.AddField(vtkm::cont::Field("c_uniform", vtkm::cont::Field::ASSOC_CELL_SET,
                            "cells", poisson, nCells));
 
     vtkm::cont::CellSetStructured<dimension> cellSet("cells");
 
-    //Set regular structure
+    //Set uniform structure
     cellSet.SetPointDimensions(vtkm::make_Vec(xVerts, yVerts));
     dataSet.AddCellSet(cellSet);
 
@@ -350,7 +350,7 @@ void PrintStatInfo(vtkm::worklet::FieldStatistics<vtkm::Float32, VTKM_DEFAULT_DE
 }
 
 //
-// Test simple dataset 2D Regular with 10 cells
+// Test simple dataset 2D Uniform with 10 cells
 //
 void TestFieldSimple()
 {
@@ -358,11 +358,11 @@ void TestFieldSimple()
   vtkm::worklet::FieldStatistics<vtkm::Float32, VTKM_DEFAULT_DEVICE_ADAPTER_TAG>::StatInfo statinfo;
 
   // Data attached is [1:10]
-  vtkm::cont::DataSet ds = Make2DRegularStatDataSet0();
+  vtkm::cont::DataSet ds = Make2DUniformStatDataSet0();
 
   // Cell data
-  vtkm::cont::ArrayHandle<vtkm::Float32> data = 
-    ds.GetField("data").GetData().CastToArrayHandle<vtkm::Float32, VTKM_DEFAULT_STORAGE_TAG>();
+  vtkm::cont::ArrayHandle<vtkm::Float32> data;
+  ds.GetField("data").GetData().CopyTo(data);
 
   // Run
   vtkm::worklet::FieldStatistics<vtkm::Float32, VTKM_DEFAULT_DEVICE_ADAPTER_TAG>().Run(data, statinfo);
@@ -389,17 +389,17 @@ void TestFieldStandardDistributions()
   vtkm::worklet::FieldStatistics<vtkm::Float32, VTKM_DEFAULT_DEVICE_ADAPTER_TAG>::StatInfo statinfo;
 
   // Data attached is the poisson distribution
-  vtkm::cont::DataSet ds = Make2DRegularStatDataSet1();
+  vtkm::cont::DataSet ds = Make2DUniformStatDataSet1();
 
   // Point data
-  vtkm::cont::ArrayHandle<vtkm::Float32> p_poisson = 
-    ds.GetField("p_poisson").GetData().CastToArrayHandle<vtkm::Float32, VTKM_DEFAULT_STORAGE_TAG>();
-  vtkm::cont::ArrayHandle<vtkm::Float32> p_normal = 
-    ds.GetField("p_normal").GetData().CastToArrayHandle<vtkm::Float32, VTKM_DEFAULT_STORAGE_TAG>();
-  vtkm::cont::ArrayHandle<vtkm::Float32> p_chiSquare = 
-    ds.GetField("p_chiSquare").GetData().CastToArrayHandle<vtkm::Float32, VTKM_DEFAULT_STORAGE_TAG>();
-  vtkm::cont::ArrayHandle<vtkm::Float32> p_uniform = 
-    ds.GetField("p_uniform").GetData().CastToArrayHandle<vtkm::Float32, VTKM_DEFAULT_STORAGE_TAG>();
+  vtkm::cont::ArrayHandle<vtkm::Float32> p_poisson;
+  ds.GetField("p_poisson").GetData().CopyTo(p_poisson);
+  vtkm::cont::ArrayHandle<vtkm::Float32> p_normal;
+  ds.GetField("p_normal").GetData().CopyTo(p_normal);
+  vtkm::cont::ArrayHandle<vtkm::Float32> p_chiSquare;
+  ds.GetField("p_chiSquare").GetData().CopyTo(p_chiSquare);
+  vtkm::cont::ArrayHandle<vtkm::Float32> p_uniform;
+  ds.GetField("p_uniform").GetData().CopyTo(p_uniform);
 
   // Run Poisson data
   vtkm::worklet::FieldStatistics<vtkm::Float32, VTKM_DEFAULT_DEVICE_ADAPTER_TAG>().Run(p_poisson, statinfo);

@@ -22,12 +22,12 @@
 
 #include <vtkm/CellShape.h>
 #include <vtkm/Math.h>
+#include <vtkm/NewtonsMethod.h>
 #include <vtkm/VecRectilinearPointCoordinates.h>
 #include <vtkm/exec/Assert.h>
 #include <vtkm/exec/CellDerivative.h>
 #include <vtkm/exec/CellInterpolate.h>
 #include <vtkm/exec/FunctorBase.h>
-#include <vtkm/exec/NewtonsMethod.h>
 
 namespace vtkm {
 namespace exec {
@@ -644,7 +644,7 @@ WorldCoordinatesToParametricCoordinates3D(
     CellShapeTag,
     const vtkm::exec::FunctorBase &worklet)
 {
-  return vtkm::exec::NewtonsMethod(
+  return vtkm::NewtonsMethod(
         JacobianFunctor3DCell<WorldCoordVector,CellShapeTag>(&pointWCoords),
         CoordinatesFunctor3DCell<WorldCoordVector,CellShapeTag>(&pointWCoords, &worklet),
         wcoords,
@@ -664,17 +664,20 @@ WorldCoordinatesToParametricCoordinates(
     vtkm::CellShapeTagGeneric shape,
     const vtkm::exec::FunctorBase &worklet)
 {
+  typename WorldCoordVector::ComponentType result;
   switch (shape.Id)
   {
     vtkmGenericCellShapeMacro(
-          return WorldCoordinatesToParametricCoordinates(pointWCoords,
-                                                         wcoords,
-                                                         CellShapeTag(),
-                                                         worklet));
+          result = WorldCoordinatesToParametricCoordinates(pointWCoords,
+                                                           wcoords,
+                                                           CellShapeTag(),
+                                                           worklet));
     default:
       worklet.RaiseError("Unknown cell shape sent to world 2 parametric.");
       return typename WorldCoordVector::ComponentType();
   }
+
+  return result;
 }
 
 template<typename WorldCoordVector>
@@ -802,7 +805,7 @@ WorldCoordinatesToParametricCoordinates(
   {
     wcoordCenter = wcoordCenter + pointWCoords[pointIndex];
   }
-  wcoordCenter = wcoordCenter*WCoordType(1.0f/numPoints);
+  wcoordCenter = wcoordCenter*WCoordType(1.0f/static_cast<float>(numPoints));
 
   // Find the normal vector to the polygon. If the polygon is planar, convex,
   // and in general position, any three points will give a normal in the same
@@ -914,7 +917,7 @@ WorldCoordinatesToParametricCoordinates(
         pointWCoords[0], pointWCoords[1], pointWCoords[3]);
 
   Vector2 pcoords =
-      vtkm::exec::NewtonsMethod(
+      vtkm::NewtonsMethod(
         detail::JacobianFunctorQuad<WorldCoordVector,vtkm::CellShapeTagQuad>(&pointWCoords, &space),
         detail::CoordinatesFunctorQuad<WorldCoordVector,vtkm::CellShapeTagQuad>(&pointWCoords, &space, &worklet),
         space.ConvertCoordToSpace(wcoords),

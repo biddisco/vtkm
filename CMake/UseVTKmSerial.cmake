@@ -31,6 +31,11 @@ else () # !VTKm_Base_FOUND
   set(VTKm_Serial_FOUND)
 endif ()
 
+#-----------------------------------------------------------------------------
+# Set up the compiler flag optimizations
+#-----------------------------------------------------------------------------
+include(VTKmCompilerOptimizations)
+
 if (VTKm_Serial_FOUND)
   set(VTKm_Serial_initialize_complete TRUE)
 endif ()

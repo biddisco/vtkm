@@ -32,11 +32,11 @@ set(unit_tests
   UnitTestBinaryPredicates.cxx
   UnitTestBinaryOperators.cxx
   UnitTestCellShape.cxx
-  UnitTestExtent.cxx
   UnitTestImplicitFunctions.cxx
   UnitTestListTag.cxx
   UnitTestMath.cxx
   UnitTestMatrix.cxx
+  UnitTestNewtonsMethod.cxx
   UnitTestPair.cxx
   UnitTestTesting.cxx
   UnitTestTypeListTag.cxx

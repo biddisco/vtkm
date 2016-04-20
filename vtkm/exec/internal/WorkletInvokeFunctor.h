@@ -62,7 +62,12 @@ public:
 
 private:
   WorkletType Worklet;
-  InvocationType Invocation;
+
+  // This is held by by value so that when we transfer the invocation object
+  // over to CUDA it gets properly copied to the device. While we want to
+  // hold by reference to reduce the number of copies, it is not possible
+  // currently.
+  const InvocationType Invocation;
 };
 
 }

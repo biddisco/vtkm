@@ -29,12 +29,12 @@
 #include <vtkm/Math.h>
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/Timer.h>
-#include <vtkm/opengl/TransferToOpenGL.h>
+#include <vtkm/interop/TransferToOpenGL.h>
 #include <vtkm/worklet/DispatcherMapField.h>
 #include <vtkm/worklet/WorkletMapField.h>
 
 //Suppress warnings about glut being deprecated on OSX
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -58,8 +58,8 @@ struct HelloVTKMInterop
   GLuint ProgramId;
   GLuint VAOId;
 
-  vtkm::opengl::BufferState VBOState;
-  vtkm::opengl::BufferState ColorState;
+  vtkm::interop::BufferState VBOState;
+  vtkm::interop::BufferState ColorState;
 
   vtkm::cont::Timer<DeviceAdapter> Timer;
 
@@ -166,8 +166,8 @@ struct HelloVTKMInterop
   GenerateSurfaceWorklet worklet( t );
   DispatcherType(worklet).Invoke( this->InHandle, this->OutCoords, this->OutColors );
 
-  vtkm::opengl::TransferToOpenGL( this->OutCoords, this->VBOState, DeviceAdapter() );
-  vtkm::opengl::TransferToOpenGL( this->OutColors, this->ColorState, DeviceAdapter() );
+  vtkm::interop::TransferToOpenGL( this->OutCoords, this->VBOState, DeviceAdapter() );
+  vtkm::interop::TransferToOpenGL( this->OutColors, this->ColorState, DeviceAdapter() );
 
   this->render();
   if(t > 10)
@@ -196,10 +196,9 @@ void idle()
 
 int main(int argc, char** argv)
 {
-  typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapter>
-                                                        DeviceAdapterTraits;
+  typedef vtkm::cont::DeviceAdapterTraits<DeviceAdapter> DeviceAdapterTraits;
   std::cout << "Running Hello World example on device adapter: "
-            << DeviceAdapterTraits::GetId() << std::endl;
+            << DeviceAdapterTraits::GetName() << std::endl;
 
   glewExperimental = GL_TRUE;
   glutInit(&argc, argv);
@@ -225,6 +224,6 @@ int main(int argc, char** argv)
   glutMainLoop();
 }
 
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic pop
 #endif

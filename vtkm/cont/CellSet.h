@@ -68,6 +68,15 @@ public:
   {
     return this->Name;
   }
+
+  /// The Dimensionality of the cells inside the cell set.
+  /// Lines = 1
+  /// Triangles, Quads = 2
+  /// Tets, Hexs, etc = 3
+  ///
+  /// CellSetExplicit has the ability to contain cells of multiple
+  /// dimensions. These datasets generally report a dimensionality
+  /// of 3.
   virtual vtkm::IdComponent GetDimensionality() const
   {
     return this->Dimensionality;
@@ -85,9 +94,7 @@ public:
     return 0;
   }
 
-  // A cell set does not (necessarily) know the number of points. Nor does a
-  // DataSet. Shouldn't someone know?
-//  virtual vtkm::Id GetNumberOfPoints() const = 0;
+  virtual vtkm::Id GetNumberOfPoints() const = 0;
 
   virtual void PrintSummary(std::ostream&) const = 0;
 

@@ -74,10 +74,10 @@ VTKM_THIRDPARTY_POST_INCLUDE
  * change. This should not be used for projects using VTKm. Instead it servers
  * are a reference for the developers of VTKm.
  *
- * \namespace vtkm::opengl
+ * \namespace vtkm::interop
  * \brief Utility opengl interop functions
  *
- * vtkm::opengl defines the publicly accessible API for interoperability between
+ * vtkm::interop defines the publicly accessible API for interoperability between
  * vtkm and opengl.
  *
  * \namespace vtkm::testing
@@ -126,12 +126,13 @@ typedef unsigned int UInt32;
 #error Could not find a 32-bit integer.
 #endif
 
-#if VTKM_SIZE_LONG == 8
-typedef signed long Int64;
-typedef unsigned long UInt64;
-#elif VTKM_SIZE_LONG_LONG == 8
+//In this order so that we exactly match the logic that exists in VTK
+#if VTKM_SIZE_LONG_LONG == 8
 typedef signed long long Int64;
 typedef unsigned long long UInt64;
+#elif VTKM_SIZE_LONG == 8
+typedef signed long Int64;
+typedef unsigned long UInt64;
 #else
 #error Could not find a 64-bit integer.
 #endif
@@ -653,10 +654,13 @@ struct BindLeftBinaryOp
   VTKM_EXEC_CONT_EXPORT
   BindLeftBinaryOp(const T &leftValue, BinaryOpType binaryOp = BinaryOpType())
     : LeftValue(leftValue), BinaryOp(binaryOp) {  }
+
+  template<typename RightT>
   VTKM_EXEC_CONT_EXPORT
-  ReturnT operator()(const T &rightValue) const
+  ReturnT operator()(const RightT &rightValue) const
   {
-    return static_cast<ReturnT>(this->BinaryOp(this->LeftValue, rightValue));
+    return static_cast<ReturnT>(this->BinaryOp(this->LeftValue,
+                                               static_cast<T>(rightValue)));
   }
 };
 
@@ -669,10 +673,13 @@ struct BindRightBinaryOp
   VTKM_EXEC_CONT_EXPORT
   BindRightBinaryOp(const T &rightValue, BinaryOpType binaryOp = BinaryOpType())
     : RightValue(rightValue), BinaryOp(binaryOp) {  }
+
+  template<typename LeftT>
   VTKM_EXEC_CONT_EXPORT
-  ReturnT operator()(const T &leftValue) const
+  ReturnT operator()(const LeftT &leftValue) const
   {
-    return static_cast<ReturnT>(this->BinaryOp(leftValue, this->RightValue));
+    return static_cast<ReturnT>(this->BinaryOp(static_cast<T>(leftValue),
+                                               this->RightValue));
   }
 };
 
@@ -682,7 +689,7 @@ struct BindRightBinaryOp
 // operation, and than  casted back down to char's when return.
 // This causes a false positive warning, even when the values is within
 // the value types range
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
 #endif // gcc || clang
@@ -731,7 +738,7 @@ struct Negate
   }
 };
 
-#if defined(VTKM_GCC) || defined(VTKM_CLANG)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 #pragma GCC diagnostic pop
 #endif // gcc || clang
 

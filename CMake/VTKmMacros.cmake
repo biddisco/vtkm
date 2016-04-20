@@ -126,6 +126,12 @@ function(vtkm_install_headers dir_prefix)
     )
 endfunction(vtkm_install_headers)
 
+function(vtkm_install_template_sources)
+  vtkm_get_kit_name(name dir_prefix)
+  set(hfiles ${ARGN})
+  vtkm_install_headers("${dir_prefix}" ${hfiles})
+endfunction(vtkm_install_template_sources)
+
 # Declare a list of headers that require thrust to be enabled
 # for them to header tested. In cases of thrust version 1.5 or less
 # we have to make sure openMP is enabled, otherwise we are okay
@@ -239,16 +245,23 @@ function(vtkm_unit_tests)
 
   if (VTKm_ENABLE_TESTING)
     vtkm_get_kit_name(kit)
-    #we use UnitTests_kit_ so that it is an unique key to exclude from coverage
-    set(test_prog UnitTests_kit_${kit})
+    #we use UnitTests_ so that it is an unique key to exclude from coverage
+    set(test_prog UnitTests_${kit})
     if(VTKm_UT_HPX)
       create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES}
         EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
     else()
       create_test_sourcelist(TestSources ${test_prog}.cxx ${VTKm_UT_SOURCES})
     endif()
-    if (VTKm_UT_CUDA)
 
+    #determine the timeout for all the tests based on the backend. CUDA tests
+    #generally require more time because of kernel generation.
+    set(timeout 180)
+    if (VTKm_UT_CUDA)
+      set(timeout 600)
+    endif()
+
+    if (VTKm_UT_CUDA)
       vtkm_setup_nvcc_flags( old_nvcc_flags )
       cuda_add_executable(${test_prog} ${TestSources})
       set(CUDA_NVCC_FLAGS ${old_nvcc_flags})
@@ -269,6 +282,8 @@ function(vtkm_unit_tests)
 
     target_link_libraries(${test_prog} ${VTKm_UT_LIBRARIES})
 
+    target_compile_options(${test_prog} PRIVATE ${VTKm_COMPILE_OPTIONS})
+
     if(MSVC)
       vtkm_setup_msvc_properties(${test_prog})
     endif()
@@ -285,6 +300,7 @@ function(vtkm_unit_tests)
       add_test(NAME ${tname}
         COMMAND ${test_prog} ${tname}
         )
+      set_tests_properties("${tname}" PROPERTIES TIMEOUT ${timeout})
     endforeach (test)
   endif (VTKm_ENABLE_TESTING)
 
@@ -392,6 +408,15 @@ function(vtkm_worklet_unit_tests device_adapter)
   if("${device_adapter}" STREQUAL "VTKM_DEVICE_ADAPTER_HPX")
     set(is_hpx true)
   endif()
+  
+  #determine the timeout for all the tests based on the backend. The first CUDA
+  #worklet test requires way more time because of the overhead to allow the
+  #driver to convert the kernel code from virtual arch to actual arch.
+  #
+  set(timeout 180)
+  if(is_cuda)
+    set(timeout 600)
+  endif()
 
   if(VTKm_ENABLE_TESTING)
     string(REPLACE "VTKM_DEVICE_ADAPTER_" "" device_type ${device_adapter})
@@ -400,6 +425,7 @@ function(vtkm_worklet_unit_tests device_adapter)
 
     #inject the device adapter into the test program name so each one is unique
     set(test_prog WorkletTests_${device_type})
+
 
     if(is_cuda)
       get_property(unit_test_srcs GLOBAL PROPERTY vtkm_worklet_unit_tests_cu_sources )
@@ -417,6 +443,9 @@ function(vtkm_worklet_unit_tests device_adapter)
       target_link_libraries(${test_prog} ${VTKm_LIBRARIES})
     endif()
 
+    #add the specific compile options for this executable
+    target_compile_options(${test_prog} PRIVATE ${VTKm_COMPILE_OPTIONS})
+
     #add a test for each worklet test file. We will inject the device
     #adapter type into the test name so that it is easier to see what
     #exact device a test is failing on.
@@ -425,6 +454,8 @@ function(vtkm_worklet_unit_tests device_adapter)
       add_test(NAME "${tname}${device_type}"
         COMMAND ${test_prog} ${tname}
         )
+
+      set_tests_properties("${tname}${device_type}" PROPERTIES TIMEOUT ${timeout})
     endforeach (test)
 
     if(MSVC)
@@ -545,6 +576,9 @@ function(vtkm_benchmarks device_adapter)
     if(MSVC)
       vtkm_setup_msvc_properties(${benchmark_prog})
     endif()
+
+    #add the specific compile options for this executable
+    target_compile_options(${benchmark_prog} PRIVATE ${VTKm_COMPILE_OPTIONS})
 
     #increase warning level if needed, we are going to skip cuda here
     #to remove all the false positive unused function warnings that cuda

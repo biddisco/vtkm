@@ -51,7 +51,7 @@ vtkm::cont::DataSet MakePointElevationTestDataSet()
 
   vtkm::Id numCells = (dim - 1) * (dim - 1);
   dataSet.AddCoordinateSystem(
-        vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
+        vtkm::cont::CoordinateSystem("coordinates", coordinates));
 
   vtkm::cont::CellSetExplicit<> cellSet(vtkm::Id(coordinates.size()), "cells", 3);
   cellSet.PrepareToAddCells(numCells, numCells * 4);
@@ -81,8 +81,7 @@ void TestPointElevation()
 
   vtkm::cont::DataSet dataSet = MakePointElevationTestDataSet();
 
-  dataSet.AddField(vtkm::cont::Field("elevation", 1, vtkm::cont::Field::ASSOC_POINTS,
-                                vtkm::Float32()));
+  vtkm::cont::ArrayHandle<vtkm::Float32> result;
 
   vtkm::worklet::PointElevation pointElevationWorklet;
   pointElevationWorklet.SetLowPoint(vtkm::make_Vec<vtkm::Float64>(0.0, 0.0, 0.0));
@@ -92,20 +91,17 @@ void TestPointElevation()
   vtkm::worklet::DispatcherMapField<vtkm::worklet::PointElevation>
       dispatcher(pointElevationWorklet);
   dispatcher.Invoke(dataSet.GetCoordinateSystem().GetData(),
-                    dataSet.GetField("elevation").GetData());
+                    result);
 
-  vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float32,3> > coordinates =
-      dataSet.GetCoordinateSystem().GetData().
-      CastToArrayHandle(vtkm::Vec<vtkm::Float32,3>(),VTKM_DEFAULT_STORAGE_TAG());
-  vtkm::cont::ArrayHandle<vtkm::Float32> result =
-      dataSet.GetField("elevation").GetData().
-      CastToArrayHandle(vtkm::Float32(),VTKM_DEFAULT_STORAGE_TAG());
+  vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float32,3> > coordinates;
+  dataSet.GetCoordinateSystem().GetData().CopyTo(coordinates);
 
   for (vtkm::Id i = 0; i < result.GetNumberOfValues(); ++i)
   {
-    VTKM_TEST_ASSERT(test_equal(coordinates.GetPortalConstControl().Get(i)[1] * 2.0,
-                                result.GetPortalConstControl().Get(i)),
-       "Wrong result for PointElevation worklet");
+    VTKM_TEST_ASSERT(
+          test_equal(coordinates.GetPortalConstControl().Get(i)[1] * 2.0,
+                     result.GetPortalConstControl().Get(i)),
+          "Wrong result for PointElevation worklet");
   }
 }
 

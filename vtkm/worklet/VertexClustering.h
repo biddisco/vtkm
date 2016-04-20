@@ -93,7 +93,6 @@ private:
 
 } // namespace internal
 
-template<typename DeviceAdapter>
 struct VertexClustering
 {
   struct GridInfo
@@ -176,34 +175,22 @@ struct VertexClustering
   class IndexingWorklet : public vtkm::worklet::WorkletMapField
   {
   public:
-    typedef typename vtkm::cont::ArrayHandle<vtkm::Id> IdArrayHandle;
-  private:
-    typedef typename IdArrayHandle::ExecutionTypes<DeviceAdapter>::Portal IdPortalType;
-    IdPortalType CidIndexRaw;
-    vtkm::Id Len;
-  public:
-      typedef void ControlSignature(FieldIn<IdType>);
-      typedef void ExecutionSignature(WorkIndex, _1);  // WorkIndex: use vtkm indexing
+      typedef void ControlSignature(FieldIn<IdType>,
+                                    WholeArrayOut<IdType>);
+      typedef void ExecutionSignature(WorkIndex, _1, _2);  // WorkIndex: use vtkm indexing
 
-      VTKM_CONT_EXPORT
-      IndexingWorklet( IdArrayHandle &cidIndexArray, vtkm::Id n ) : Len(n)
-      {
-        this->CidIndexRaw = cidIndexArray.PrepareForOutput(n, DeviceAdapter() );
-      }
-
+      template<typename OutPortalType>
       VTKM_EXEC_EXPORT
-      void operator()(const vtkm::Id &counter, const vtkm::Id &cid) const
+      void operator()(const vtkm::Id &counter,
+                      const vtkm::Id &cid,
+                      const OutPortalType &outPortal) const
       {
-        VTKM_ASSERT_EXEC( cid < this->Len , *this );
-        this->CidIndexRaw.Set(cid, counter);
+        outPortal.Set(cid, counter);
       }
   };
 
   class Cid2PointIdWorklet : public vtkm::worklet::WorkletMapField
   {
-    typedef typename vtkm::cont::ArrayHandle<vtkm::Id> IdArrayHandle;
-    typedef typename IdArrayHandle::ExecutionTypes<DeviceAdapter>::PortalConst IdPortalType;
-    const IdPortalType CidIndexRaw;
     vtkm::Id NPoints;
 
     VTKM_EXEC_EXPORT
@@ -213,17 +200,21 @@ struct VertexClustering
     }
 
   public:
-    typedef void ControlSignature(FieldIn<Id3Type>, FieldOut<Id3Type>);
-    typedef void ExecutionSignature(_1, _2);
+    typedef void ControlSignature(FieldIn<Id3Type>,
+                                  FieldOut<Id3Type>,
+                                  WholeArrayIn<IdType>);
+    typedef void ExecutionSignature(_1, _2, _3);
 
     VTKM_CONT_EXPORT
-    Cid2PointIdWorklet( IdArrayHandle &cidIndexArray, vtkm::Id nPoints )
-      : CidIndexRaw ( cidIndexArray.PrepareForInput(DeviceAdapter()) ),
+    Cid2PointIdWorklet( vtkm::Id nPoints ):
       NPoints(nPoints)
     {}
 
+    template<typename InPortalType>
     VTKM_EXEC_EXPORT
-    void operator()(const vtkm::Id3 &cid3, vtkm::Id3 &pointId3) const
+    void operator()(const vtkm::Id3 &cid3,
+                    vtkm::Id3 &pointId3,
+                    const InPortalType& inPortal) const
     {
       if (cid3[0]==cid3[1] || cid3[0]==cid3[2] || cid3[1]==cid3[2])
       {
@@ -231,10 +222,9 @@ struct VertexClustering
       }
       else
       {
-        pointId3[0] = this->CidIndexRaw.Get( cid3[0] );
-        pointId3[1] = this->CidIndexRaw.Get( cid3[1] );
-        pointId3[2] = this->CidIndexRaw.Get( cid3[2] );
-        VTKM_ASSERT_EXEC( pointId3[0] < this->NPoints && pointId3[1] < this->NPoints && pointId3[2] < this->NPoints, *this );
+        pointId3[0] = inPortal.Get( cid3[0] );
+        pointId3[1] = inPortal.Get( cid3[1] );
+        pointId3[2] = inPortal.Get( cid3[2] );
 
         // Sort triangle point ids so that the same triangle will have the same signature
         // Rotate these ids making the first one the smallest
@@ -317,28 +307,22 @@ struct VertexClustering
     }
   };
 
-  template <typename ValueType>
-  void SortAndUnique(vtkm::cont::ArrayHandle<ValueType> &pointId3Array)
-  {
-    ///
-    /// Unique: Decimate replicated cells
-    ///
-    vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Sort(pointId3Array);
-
-    vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Unique(pointId3Array);
-  }
 
 public:
 
   ///////////////////////////////////////////////////
   /// \brief VertexClustering: Mesh simplification
   ///
-  vtkm::cont::DataSet Run(const vtkm::cont::DynamicCellSet &cellSet,
-                          const vtkm::cont::CoordinateSystem &coordinates,
-                          vtkm::Id nDivisions)
+  template<typename DynamicCellSetType,
+           typename DynamicCoordinateHandleType,
+           typename DeviceAdapter>
+  vtkm::cont::DataSet Run(const DynamicCellSetType &cellSet,
+                          const DynamicCoordinateHandleType &coordinates,
+                          vtkm::Float64 *bounds,
+                          const vtkm::Id3& nDivisions,
+                          DeviceAdapter)
   {
-    vtkm::Float64 bounds[6];
-    coordinates.GetBounds(bounds, DeviceAdapter());
+
 
     /// determine grid resolution for clustering
     GridInfo gridInfo;
@@ -346,21 +330,21 @@ public:
       vtkm::Float64 res[3];
       for (vtkm::IdComponent i=0; i<3; i++)
       {
-        res[i] = (bounds[i*2+1]-bounds[i*2])/nDivisions;
+        res[i] = (bounds[i*2+1]-bounds[i*2])/static_cast<vtkm::Float64>(nDivisions[i]);
       }
       gridInfo.grid_width = vtkm::Max(res[0], vtkm::Max(res[1], res[2]));
 
       vtkm::Float64 inv_grid_width = gridInfo.inv_grid_width = vtkm::Float64(1) / gridInfo.grid_width;
 
       //printf("Bounds: %lf, %lf, %lf, %lf, %lf, %lf\n", bounds[0], bounds[1], bounds[2], bounds[3], bounds[4], bounds[5]);
-      gridInfo.dim[0] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[1]-bounds[0])*inv_grid_width), nDivisions);
-      gridInfo.dim[1] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[3]-bounds[2])*inv_grid_width), nDivisions);
-      gridInfo.dim[2] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[5]-bounds[4])*inv_grid_width), nDivisions);
+      gridInfo.dim[0] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[1]-bounds[0])*inv_grid_width), nDivisions[0]);
+      gridInfo.dim[1] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[3]-bounds[2])*inv_grid_width), nDivisions[1]);
+      gridInfo.dim[2] = vtkm::Min((vtkm::Id)vtkm::Ceil((bounds[5]-bounds[4])*inv_grid_width), nDivisions[2]);
 
       // center the mesh in the grids
-      gridInfo.origin[0] = (bounds[1]+bounds[0])*0.5 - gridInfo.grid_width*(gridInfo.dim[0])*.5;
-      gridInfo.origin[1] = (bounds[3]+bounds[2])*0.5 - gridInfo.grid_width*(gridInfo.dim[1])*.5;
-      gridInfo.origin[2] = (bounds[5]+bounds[4])*0.5 - gridInfo.grid_width*(gridInfo.dim[2])*.5;
+      gridInfo.origin[0] = (bounds[1]+bounds[0])*0.5 - gridInfo.grid_width*static_cast<vtkm::Float64>(gridInfo.dim[0])*.5;
+      gridInfo.origin[1] = (bounds[3]+bounds[2])*0.5 - gridInfo.grid_width*static_cast<vtkm::Float64>(gridInfo.dim[1])*.5;
+      gridInfo.origin[2] = (bounds[5]+bounds[4])*0.5 - gridInfo.grid_width*static_cast<vtkm::Float64>(gridInfo.dim[2])*.5;
     }
 
     //construct the scheduler that will execute all the worklets
@@ -377,7 +361,7 @@ public:
     vtkm::cont::ArrayHandle<vtkm::Id> pointCidArray;
 
     vtkm::worklet::DispatcherMapField<MapPointsWorklet, DeviceAdapter>(
-        MapPointsWorklet(gridInfo)).Invoke(coordinates.GetData(), pointCidArray);
+        MapPointsWorklet(gridInfo)).Invoke(coordinates, pointCidArray);
 
 #ifdef __VTKM_VERTEX_CLUSTERING_BENCHMARK
     std::cout << "Time map points (s): " << timer.GetElapsedTime() << std::endl;
@@ -394,7 +378,7 @@ public:
                                        vtkm::cont::ArrayHandle<vtkm::Id>,
                                        DeviceAdapter>
         averageByKey(pointCidArray, pointCidArrayReduced, repPointArray);
-    coordinates.GetData().CastAndCall(averageByKey);
+    coordinates.CastAndCall(averageByKey);
 
 #ifdef __VTKM_VERTEX_CLUSTERING_BENCHMARK
     std::cout << "Time after averaging (s): " << timer.GetElapsedTime() << std::endl;
@@ -415,10 +399,12 @@ public:
 
     /// preparation: Get the indexes of the clustered points to prepare for new cell array
     vtkm::cont::ArrayHandle<vtkm::Id> cidIndexArray;
+    cidIndexArray.PrepareForOutput(gridInfo.dim[0]*gridInfo.dim[1]*gridInfo.dim[2],
+                                   DeviceAdapter());
 
-    vtkm::worklet::DispatcherMapField<IndexingWorklet, DeviceAdapter> (
-      IndexingWorklet(cidIndexArray, gridInfo.dim[0]*gridInfo.dim[1]*gridInfo.dim[2]))
-        .Invoke(pointCidArrayReduced);
+    vtkm::worklet::DispatcherMapField<
+                  IndexingWorklet,
+                  DeviceAdapter>().Invoke(pointCidArrayReduced, cidIndexArray);
 
     pointCidArrayReduced.ReleaseResources();
 
@@ -431,7 +417,7 @@ public:
     vtkm::cont::ArrayHandle<vtkm::Id3> pointId3Array;
 
     vtkm::worklet::DispatcherMapField<Cid2PointIdWorklet, DeviceAdapter>(
-        Cid2PointIdWorklet( cidIndexArray, nPoints)).Invoke(cid3Array, pointId3Array);
+        Cid2PointIdWorklet(nPoints)).Invoke(cid3Array, pointId3Array, cidIndexArray);
 
     cid3Array.ReleaseResources();
     cidIndexArray.ReleaseResources();
@@ -452,7 +438,8 @@ public:
     std::cout << "Time before sort and unique with hashing (s): " << timer.GetElapsedTime() << std::endl;
 #endif
 
-      SortAndUnique(pointId3HashArray);
+      vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Sort(pointId3HashArray);
+      vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Unique(pointId3HashArray);
 
 #ifdef __VTKM_VERTEX_CLUSTERING_BENCHMARK
     std::cout << "Time after sort and unique with hashing (s): " << timer.GetElapsedTime() << std::endl;
@@ -470,7 +457,8 @@ public:
       std::cout << "Time before sort and unique [no hashing] (s): " << timer.GetElapsedTime() << std::endl;
 #endif
 
-      SortAndUnique(pointId3Array);
+      vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Sort(pointId3Array);
+      vtkm::cont::DeviceAdapterAlgorithm<DeviceAdapter>::Unique(pointId3Array);
 
 #ifdef __VTKM_VERTEX_CLUSTERING_BENCHMARK
       std::cout << "Time after sort and unique [no hashing] (s): " << timer.GetElapsedTime() << std::endl;
@@ -488,7 +476,7 @@ public:
     /// output
     vtkm::cont::DataSet output;
 
-    output.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", 0, repPointArray));
+    output.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", repPointArray));
 
     vtkm::cont::CellSetSingleType< > triangles(vtkm::CellShapeTagTriangle(),
                                              "cells");

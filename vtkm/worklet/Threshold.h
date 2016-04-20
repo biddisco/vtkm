@@ -33,7 +33,6 @@
 namespace vtkm {
 namespace worklet {
 
-template <typename DeviceAdapter>
 class Threshold
 {
 public:
@@ -102,13 +101,14 @@ public:
     UnaryPredicate Predicate;
   };
 
-  template <typename CellSetType, typename UnaryPredicate>
-  vtkm::cont::CellSetPermutation<vtkm::cont::ArrayHandle<vtkm::Id>, CellSetType>
-  Run(const CellSetType &cellSet, const vtkm::cont::Field &field,
-      const UnaryPredicate &predicate)
+  template <typename CellSetType, typename UnaryPredicate, typename DeviceAdapter>
+  vtkm::cont::CellSetPermutation< CellSetType >
+  Run(const CellSetType &cellSet,
+      const vtkm::cont::Field &field,
+      const UnaryPredicate &predicate,
+      DeviceAdapter)
   {
-    typedef vtkm::cont::CellSetPermutation<vtkm::cont::ArrayHandle<vtkm::Id>,
-                                           CellSetType> OutputType;
+    typedef vtkm::cont::CellSetPermutation< CellSetType > OutputType;
 
     vtkm::cont::ArrayHandle<bool> passFlags;
     switch(field.GetAssociation())
@@ -174,7 +174,7 @@ public:
     vtkm::cont::DynamicArrayHandle data;
     field.GetData().CastAndCall(PermuteCellData(this->ValidCellIds, data));
 
-    return vtkm::cont::Field(field.GetName(), field.GetOrder(), field.GetAssociation(),
+    return vtkm::cont::Field(field.GetName(), field.GetAssociation(),
                              field.GetAssocCellSet(), data);
   }
 

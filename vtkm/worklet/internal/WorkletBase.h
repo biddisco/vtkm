@@ -31,22 +31,20 @@
 #include <vtkm/exec/arg/WorkIndex.h>
 
 #include <vtkm/cont/arg/ControlSignatureTagBase.h>
+#include <vtkm/cont/arg/TransportTagAtomicArray.h>
 #include <vtkm/cont/arg/TransportTagExecObject.h>
+#include <vtkm/cont/arg/TransportTagWholeArrayIn.h>
+#include <vtkm/cont/arg/TransportTagWholeArrayInOut.h>
+#include <vtkm/cont/arg/TransportTagWholeArrayOut.h>
+#include <vtkm/cont/arg/TypeCheckTagArray.h>
+#include <vtkm/cont/arg/TypeCheckTagAtomicArray.h>
 #include <vtkm/cont/arg/TypeCheckTagExecObject.h>
 
 #include <vtkm/worklet/ScatterIdentity.h>
 
 namespace vtkm {
-namespace worklet {
-namespace internal {
+namespace placeholders {
 
-/// Base class for all worklet classes. Worklet classes are subclasses and a
-/// operator() const is added to implement an algorithm in VTK-m. Different
-/// worklets have different calling semantics.
-///
-class WorkletBase : public vtkm::exec::FunctorBase
-{
-public:
   template<int ControlSignatureIndex>
   struct Arg : vtkm::exec::arg::BasicArg<ControlSignatureIndex> {  };
 
@@ -60,6 +58,27 @@ public:
   struct _7 : Arg<7> {  };
   struct _8 : Arg<8> {  };
   struct _9 : Arg<9> {  };
+}
+
+namespace worklet {
+namespace internal {
+
+/// Base class for all worklet classes. Worklet classes are subclasses and a
+/// operator() const is added to implement an algorithm in VTK-m. Different
+/// worklets have different calling semantics.
+///
+class WorkletBase : public vtkm::exec::FunctorBase
+{
+public:
+  typedef vtkm::placeholders::_1 _1;
+  typedef vtkm::placeholders::_2 _2;
+  typedef vtkm::placeholders::_3 _3;
+  typedef vtkm::placeholders::_4 _4;
+  typedef vtkm::placeholders::_5 _5;
+  typedef vtkm::placeholders::_6 _6;
+  typedef vtkm::placeholders::_7 _7;
+  typedef vtkm::placeholders::_8 _8;
+  typedef vtkm::placeholders::_9 _9;
 
   /// \c ExecutionSignature tag for getting the work index.
   ///
@@ -112,6 +131,12 @@ public:
   /// This is a convenience type to use as template arguments to \c
   /// ControlSignature tags to specify the types of worklet arguments.
   typedef vtkm::TypeListTagId3 Id3Type;
+
+  /// \brief A type list containing the type vtkm::IdComponent.
+  ///
+  /// This is a convenience type to use as template arguments to \c
+  /// ControlSignature tags to specify the types of worklet arguments.
+  typedef vtkm::TypeListTagIdComponent IdComponentType;
 
   /// \brief A list of types commonly used for indexing.
   ///
@@ -178,6 +203,79 @@ public:
   /// This is a convenience type to use as template arguments to \c
   /// ControlSignature tags to specify the types of worklet arguments.
   typedef vtkm::TypeListTagAll AllTypes;
+
+  /// \c ControlSignature tag for whole input arrays.
+  ///
+  /// The \c WholeArrayIn control signature tag specifies an \c ArrayHandle
+  /// passed to the \c Invoke operation of the dispatcher. This is converted
+  /// to an \c ArrayPortal object and passed to the appropriate worklet
+  /// operator argument with one of the default args.
+  ///
+  /// The template operator specifies all the potential value types of the
+  /// array. The default value type is all types.
+  ///
+  template<typename TypeList = AllTypes>
+  struct WholeArrayIn : vtkm::cont::arg::ControlSignatureTagBase {
+    typedef vtkm::cont::arg::TypeCheckTagArray<TypeList> TypeCheckTag;
+    typedef vtkm::cont::arg::TransportTagWholeArrayIn TransportTag;
+    typedef vtkm::exec::arg::FetchTagExecObject FetchTag;
+  };
+
+  /// \c ControlSignature tag for whole output arrays.
+  ///
+  /// The \c WholeArrayOut control signature tag specifies an \c ArrayHandle
+  /// passed to the \c Invoke operation of the dispatcher. This is converted to
+  /// an \c ArrayPortal object and passed to the appropriate worklet operator
+  /// argument with one of the default args. Care should be taken to not write
+  /// a value in one instance that will be overridden by another entry.
+  ///
+  /// The template operator specifies all the potential value types of the
+  /// array. The default value type is all types.
+  ///
+  template<typename TypeList = AllTypes>
+  struct WholeArrayOut : vtkm::cont::arg::ControlSignatureTagBase {
+    typedef vtkm::cont::arg::TypeCheckTagArray<TypeList> TypeCheckTag;
+    typedef vtkm::cont::arg::TransportTagWholeArrayOut TransportTag;
+    typedef vtkm::exec::arg::FetchTagExecObject FetchTag;
+  };
+
+  /// \c ControlSignature tag for whole input/output arrays.
+  ///
+  /// The \c WholeArrayOut control signature tag specifies an \c ArrayHandle
+  /// passed to the \c Invoke operation of the dispatcher. This is converted to
+  /// an \c ArrayPortal object and passed to the appropriate worklet operator
+  /// argument with one of the default args. Care should be taken to not write
+  /// a value in one instance that will be read by or overridden by another
+  /// entry.
+  ///
+  /// The template operator specifies all the potential value types of the
+  /// array. The default value type is all types.
+  ///
+  template<typename TypeList = AllTypes>
+  struct WholeArrayInOut : vtkm::cont::arg::ControlSignatureTagBase {
+    typedef vtkm::cont::arg::TypeCheckTagArray<TypeList> TypeCheckTag;
+    typedef vtkm::cont::arg::TransportTagWholeArrayInOut TransportTag;
+    typedef vtkm::exec::arg::FetchTagExecObject FetchTag;
+  };
+
+  /// \c ControlSignature tag for whole input/output arrays.
+  ///
+  /// The \c AtomicArrayInOut control signature tag specifies an \c ArrayHandle
+  /// passed to the \c Invoke operation of the dispatcher. This is converted to
+  /// a \c vtkm::exec::AtomicArray object and passed to the appropriate worklet
+  /// operator argument with one of the default args. The provided atomic
+  /// operations can be used to resolve concurrency hazards, but have the
+  /// potential to slow the program quite a bit.
+  ///
+  /// The template operator specifies all the potential value types of the
+  /// array. The default value type is all types.
+  ///
+  template<typename TypeList = AllTypes>
+  struct AtomicArrayInOut : vtkm::cont::arg::ControlSignatureTagBase {
+    typedef vtkm::cont::arg::TypeCheckTagAtomicArray<TypeList> TypeCheckTag;
+    typedef vtkm::cont::arg::TransportTagAtomicArray TransportTag;
+    typedef vtkm::exec::arg::FetchTagExecObject FetchTag;
+  };
 
   /// \brief Creates a \c ThreadIndices object.
   ///

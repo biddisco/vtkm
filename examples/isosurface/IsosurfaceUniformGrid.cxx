@@ -24,7 +24,7 @@
 #define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_SERIAL
 #endif
 
-#include <vtkm/worklet/IsosurfaceUniformGrid.h>
+#include <vtkm/filter/MarchingCubes.h>
 #include <vtkm/worklet/DispatcherMapField.h>
 
 #include <vtkm/Math.h>
@@ -33,7 +33,7 @@
 #include <vtkm/cont/DataSet.h>
 
 //Suppress warnings about glut being deprecated on OSX
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -48,10 +48,7 @@
 
 #include <vector>
 
-typedef VTKM_DEFAULT_DEVICE_ADAPTER_TAG DeviceAdapter;
-
-vtkm::Id3 dims(16,16,16);
-vtkm::worklet::IsosurfaceFilterUniformGrid<vtkm::Float32, DeviceAdapter> *isosurfaceFilter;
+vtkm::Id3 dims(256, 256, 256);
 vtkm::cont::ArrayHandle<vtkm::Vec<vtkm::Float32,3> > verticesArray, normalsArray;
 vtkm::cont::ArrayHandle<vtkm::Float32> scalarsArray;
 Quaternion qrot;
@@ -120,9 +117,9 @@ vtkm::cont::DataSet MakeIsosurfaceTestDataSet(vtkm::Id3 dims)
   vtkm::cont::ArrayHandleUniformPointCoordinates
       coordinates(vdims, origin, spacing);
   dataSet.AddCoordinateSystem(
-          vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
+          vtkm::cont::CoordinateSystem("coordinates", coordinates));
 
-  dataSet.AddField(vtkm::cont::Field("nodevar", 1, vtkm::cont::Field::ASSOC_POINTS, fieldArray));
+  dataSet.AddField(vtkm::cont::Field("nodevar", vtkm::cont::Field::ASSOC_POINTS, fieldArray));
 
   static const vtkm::IdComponent ndim = 3;
   vtkm::cont::CellSetStructured<ndim> cellSet("cells");
@@ -142,9 +139,9 @@ void initializeGL()
   glEnable(GL_DEPTH_TEST);
   glShadeModel(GL_SMOOTH);
 
-  vtkm::FloatDefault white[] = { 0.8f, 0.8f, 0.8f, 1.0f };
-  vtkm::FloatDefault black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-  vtkm::FloatDefault lightPos[] = { 10.0f, 10.0f, 10.5f, 1.0f };
+  vtkm::Float32 white[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+  vtkm::Float32 black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+  vtkm::Float32 lightPos[] = { 10.0f, 10.0f, 10.5f, 1.0f };
 
   glLightfv(GL_LIGHT0, GL_AMBIENT, white);
   glLightfv(GL_LIGHT0, GL_DIFFUSE, white);
@@ -233,20 +230,27 @@ void mouseCall(int button, int state, int x, int y)
 // Compute and render an isosurface for a uniform grid example
 int main(int argc, char* argv[])
 {
-  typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapter>
-                                                        DeviceAdapterTraits;
-  std::cout << "Running IsosurfaceUniformGrid example on device adapter: "
-            << DeviceAdapterTraits::GetId() << std::endl;
-
   vtkm::cont::DataSet dataSet = MakeIsosurfaceTestDataSet(dims);
 
-  isosurfaceFilter = new vtkm::worklet::IsosurfaceFilterUniformGrid<vtkm::Float32, DeviceAdapter>(dims, dataSet);
+  vtkm::filter::MarchingCubes filter;
+  filter.SetGenerateNormals(true);
+  filter.SetMergeDuplicatePoints( false );
+  filter.SetIsoValue( 0.5 );
+  vtkm::filter::DataSetResult result = filter.Execute( dataSet,
+                                                       dataSet.GetField("nodevar") );
 
-  isosurfaceFilter->Run(0.5,
-                        dataSet.GetField("nodevar").GetData(),
-                        verticesArray,
-                        normalsArray,
-                        scalarsArray);
+  filter.MapFieldOntoOutput(result, dataSet.GetField("nodevar"));
+
+  //need to extract vertices, normals, and scalars
+  vtkm::cont::DataSet& outputData = result.GetDataSet();
+
+
+  typedef vtkm::cont::ArrayHandle< vtkm::Vec<vtkm::Float32,3> > VertType;
+  vtkm::cont::CoordinateSystem coords = outputData.GetCoordinateSystem();
+
+  verticesArray = coords.GetData().Cast<VertType>();
+  normalsArray = outputData.GetField("normals").GetData().Cast<VertType>();
+  scalarsArray = outputData.GetField("nodevar").GetData().Cast< vtkm::cont::ArrayHandle<vtkm::Float32> >();
 
   std::cout << "Number of output vertices: " << verticesArray.GetNumberOfValues() << std::endl;
 
@@ -274,6 +278,6 @@ int main(int argc, char* argv[])
   return 0;
 }
 
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic pop
 #endif

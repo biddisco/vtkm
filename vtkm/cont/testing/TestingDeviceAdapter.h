@@ -30,6 +30,7 @@
 #include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/ErrorControlBadAllocation.h>
 #include <vtkm/cont/ErrorExecution.h>
+#include <vtkm/cont/RuntimeDeviceInformation.h>
 #include <vtkm/cont/StorageBasic.h>
 #include <vtkm/cont/Timer.h>
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
@@ -37,6 +38,8 @@
 #include <vtkm/cont/internal/DeviceAdapterError.h>
 
 #include <vtkm/cont/testing/Testing.h>
+
+#include <vtkm/exec/AtomicArray.h>
 
 #include <algorithm>
 #include <cmath>
@@ -275,6 +278,56 @@ public:
     }
   };
 
+  template<typename T>
+  struct AtomicKernel
+  {
+    VTKM_CONT_EXPORT
+    AtomicKernel(const vtkm::exec::AtomicArray<T,DeviceAdapterTag> &array)
+    : AArray(array)
+    {  }
+
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
+    {
+      T value = (T) index;
+      this->AArray.Add(0, value);
+    }
+
+    VTKM_CONT_EXPORT void SetErrorMessageBuffer(
+        const vtkm::exec::internal::ErrorMessageBuffer &) {  }
+
+    vtkm::exec::AtomicArray<T,DeviceAdapterTag> AArray;
+  };
+
+  template<typename T>
+  struct AtomicCASKernel
+  {
+    VTKM_CONT_EXPORT
+    AtomicCASKernel(const vtkm::exec::AtomicArray<T,DeviceAdapterTag> &array)
+    : AArray(array)
+    {  }
+
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
+    {
+      T value = (T) index;
+      //Get the old value from the array with a no-op
+      T oldValue = this->AArray.Add(0,T(0));
+      //This creates an atomic add using the CAS operatoin
+      T assumed = T(0);
+      do
+      {
+        assumed = oldValue;
+        oldValue = this->AArray.CompareAndSwap(0, (assumed + value) , assumed);
+
+      } while (assumed != oldValue);
+
+    }
+
+    VTKM_CONT_EXPORT void SetErrorMessageBuffer(
+        const vtkm::exec::internal::ErrorMessageBuffer &) {  }
+
+    vtkm::exec::AtomicArray<T,DeviceAdapterTag> AArray;
+  };
+
 
 private:
 
@@ -283,14 +336,19 @@ private:
     std::cout << "-------------------------------------------" << std::endl;
     std::cout << "Testing device adapter tag" << std::endl;
 
-    typedef vtkm::cont::internal::DeviceAdapterTraits<DeviceAdapterTag> Traits;
-    typedef vtkm::cont::internal::DeviceAdapterTraits<
+    typedef vtkm::cont::DeviceAdapterTraits<DeviceAdapterTag> Traits;
+    typedef vtkm::cont::DeviceAdapterTraits<
         vtkm::cont::DeviceAdapterTagError> ErrorTraits;
 
     VTKM_TEST_ASSERT(Traits::GetId() == Traits::GetId(),
                      "Device adapter Id does not equal itself.");
     VTKM_TEST_ASSERT(Traits::GetId() != ErrorTraits::GetId(),
                      "Device adapter Id not distinguishable from others.");
+
+    VTKM_TEST_ASSERT(Traits::GetName() == Traits::GetName(),
+                     "Device adapter Name does not equal itself.");
+    VTKM_TEST_ASSERT(Traits::GetName() != ErrorTraits::GetName(),
+                     "Device adapter Name not distinguishable from others.");
   }
 
   // Note: this test does not actually test to make sure the data is available
@@ -399,11 +457,15 @@ private:
 
     vtkm::cont::Timer<DeviceAdapterTag> timer;
 
+    std::cout << "Timer started. Sleeping..." << std::endl;
+
 #ifndef _WIN32
     sleep(1);
 #else
     Sleep(1000);
 #endif
+
+    std::cout << "Woke up. Check time." << std::endl;
 
     vtkm::Float64 elapsedTime = timer.GetElapsedTime();
 
@@ -413,6 +475,18 @@ private:
                      "Timer did not capture full second wait.");
     VTKM_TEST_ASSERT(elapsedTime < 2.0,
                      "Timer counted too far or system really busy.");
+  }
+
+  VTKM_CONT_EXPORT
+  static void TestRuntime()
+  {
+    std::cout << "-------------------------------------------" << std::endl;
+    std::cout << "Testing RuntimeDeviceInformation" << std::endl;
+
+    vtkm::cont::RuntimeDeviceInformation<DeviceAdapterTag> runtime;
+    const bool valid_runtime = runtime.Exists();
+
+    VTKM_TEST_ASSERT(valid_runtime, "runtime detection failed for device");
   }
 
   static VTKM_CONT_EXPORT void TestAlgorithmSchedule()
@@ -1542,6 +1616,68 @@ private:
 
   }
 
+  static VTKM_CONT_EXPORT void TestAtomicArray()
+  {
+    vtkm::Int32 atomicCount = 0;
+    for(vtkm::Int32 i = 0; i < ARRAY_SIZE; i++) atomicCount += i;
+    std::cout << "-------------------------------------------" << std::endl;
+    // To test the atomics, ARRAY_SIZE number of threads will all increment
+    // a single atomic value.
+    std::cout << "Testing Atomic Add with vtkm::Int32" << std::endl;
+    {
+    std::vector<vtkm::Int32> singleElement;
+    singleElement.push_back(0);
+    vtkm::cont::ArrayHandle<vtkm::Int32> atomicElement = vtkm::cont::make_ArrayHandle(singleElement);
+
+    vtkm::exec::AtomicArray<vtkm::Int32, DeviceAdapterTag> atomic(atomicElement);
+    Algorithm::Schedule(AtomicKernel<vtkm::Int32>(atomic), ARRAY_SIZE);
+    vtkm::Int32 expected = vtkm::Int32(atomicCount);
+    vtkm::Int32 actual= atomicElement.GetPortalControl().Get(0);
+    VTKM_TEST_ASSERT(expected == actual, "Did not get expected value: Atomic add Int32");
+    }
+
+    std::cout << "Testing Atomic Add with vtkm::Int64" << std::endl;
+    {
+    std::vector<vtkm::Int64> singleElement;
+    singleElement.push_back(0);
+    vtkm::cont::ArrayHandle<vtkm::Int64> atomicElement = vtkm::cont::make_ArrayHandle(singleElement);
+
+    vtkm::exec::AtomicArray<vtkm::Int64, DeviceAdapterTag> atomic(atomicElement);
+    Algorithm::Schedule(AtomicKernel<vtkm::Int64>(atomic), ARRAY_SIZE);
+    vtkm::Int64 expected = vtkm::Int64(atomicCount);
+    vtkm::Int64 actual= atomicElement.GetPortalControl().Get(0);
+    VTKM_TEST_ASSERT(expected == actual, "Did not get expected value: Atomic add Int64");
+    }
+
+    std::cout << "Testing Atomic CAS with vtkm::Int32" << std::endl;
+    {
+    std::vector<vtkm::Int32> singleElement;
+    singleElement.push_back(0);
+    vtkm::cont::ArrayHandle<vtkm::Int32> atomicElement = vtkm::cont::make_ArrayHandle(singleElement);
+
+    vtkm::exec::AtomicArray<vtkm::Int32, DeviceAdapterTag> atomic(atomicElement);
+    Algorithm::Schedule(AtomicCASKernel<vtkm::Int32>(atomic), ARRAY_SIZE);
+    vtkm::Int32 expected = vtkm::Int32(atomicCount);
+    vtkm::Int32 actual= atomicElement.GetPortalControl().Get(0);
+    VTKM_TEST_ASSERT(expected == actual, "Did not get expected value: Atomic CAS Int32");
+    }
+
+    std::cout << "Testing Atomic CAS with vtkm::Int64" << std::endl;
+    {
+    std::vector<vtkm::Int64> singleElement;
+    singleElement.push_back(0);
+    vtkm::cont::ArrayHandle<vtkm::Int64> atomicElement = vtkm::cont::make_ArrayHandle(singleElement);
+
+    vtkm::exec::AtomicArray<vtkm::Int64, DeviceAdapterTag> atomic(atomicElement);
+    Algorithm::Schedule(AtomicCASKernel<vtkm::Int64>(atomic), ARRAY_SIZE);
+    vtkm::Int64 expected = vtkm::Int64(atomicCount);
+    vtkm::Int64 actual= atomicElement.GetPortalControl().Get(0);
+    VTKM_TEST_ASSERT(expected == actual, "Did not get expected value: Atomic CAS Int64");
+    }
+
+
+  }
+
   struct TestAll
   {
     VTKM_CONT_EXPORT void operator()() const
@@ -1550,6 +1686,7 @@ private:
       TestArrayManagerExecution();
       TestOutOfMemory();
       TestTimer();
+      TestRuntime();
 
       TestAlgorithmSchedule();
       TestErrorExecution();
@@ -1582,6 +1719,8 @@ private:
       TestStreamCompact();
 
       TestCopyArraysInDiffTypes();
+
+      TestAtomicArray();
     }
   };
 

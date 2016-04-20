@@ -23,6 +23,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 set(headers
   ArrayHandle.h
   ArrayHandleCast.h
+  ArrayHandleCartesianProduct.h
   ArrayHandleCompositeVector.h
   ArrayHandleConstant.h
   ArrayHandleCounting.h
@@ -44,6 +45,10 @@ set(headers
   CellSetPermutation.h
   CoordinateSystem.h
   DataSet.h
+  DataSetBuilderExplicit.h
+  DataSetBuilderRectilinear.h
+  DataSetBuilderUniform.h
+  DataSetFieldAdd.h
   DeviceAdapter.h
   DeviceAdapterAlgorithm.h
   DeviceAdapterSerial.h
@@ -59,6 +64,7 @@ set(headers
   ErrorExecution.h
   Field.h
   LogicalStructure.h
+  RuntimeDeviceInformation.h
   Storage.h
   StorageBasic.h
   StorageImplicit.h

@@ -28,6 +28,16 @@
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 
+VTKM_THIRDPARTY_PRE_INCLUDE
+#if  defined(VTKM_MSVC)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
+#undef WIN32_LEAN_AND_MEAN
+#undef NOMINMAX
+#endif
+VTKM_THIRDPARTY_POST_INCLUDE
+
 namespace vtkm {
 namespace cont {
 namespace internal {
@@ -591,23 +601,7 @@ template<typename T, typename U, class CIn, class CStencil, class COut>
   VTKM_CONT_EXPORT static void Unique(
       vtkm::cont::ArrayHandle<T,Storage> &values)
   {
-    vtkm::cont::ArrayHandle<vtkm::Id, vtkm::cont::StorageTagBasic>
-        stencilArray;
-    vtkm::Id inputSize = values.GetNumberOfValues();
-
-    ClassifyUniqueKernel<
-        typename vtkm::cont::ArrayHandle<T,Storage>::template ExecutionTypes<DeviceAdapterTag>::PortalConst,
-        typename vtkm::cont::ArrayHandle<vtkm::Id,vtkm::cont::StorageTagBasic>::template ExecutionTypes<DeviceAdapterTag>::Portal>
-        classifyKernel(values.PrepareForInput(DeviceAdapterTag()),
-                       stencilArray.PrepareForOutput(inputSize, DeviceAdapterTag()));
-    DerivedAlgorithm::Schedule(classifyKernel, inputSize);
-
-    vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic>
-        outputArray;
-
-    DerivedAlgorithm::StreamCompact(values, stencilArray, outputArray);
-
-    DerivedAlgorithm::Copy(outputArray, values);
+    Unique(values, std::equal_to<T>());
   }
 
   template<typename T, class Storage, class BinaryCompare>
@@ -619,13 +613,17 @@ template<typename T, typename U, class CIn, class CStencil, class COut>
         stencilArray;
     vtkm::Id inputSize = values.GetNumberOfValues();
 
+    typedef internal::WrappedBinaryOperator<bool,BinaryCompare> WrappedBOpType;
+    WrappedBOpType wrappedCompare(binary_compare);
+
     ClassifyUniqueComparisonKernel<
         typename vtkm::cont::ArrayHandle<T,Storage>::template ExecutionTypes<DeviceAdapterTag>::PortalConst,
         typename vtkm::cont::ArrayHandle<vtkm::Id,vtkm::cont::StorageTagBasic>::template ExecutionTypes<DeviceAdapterTag>::Portal,
-        BinaryCompare>
+        WrappedBOpType>
         classifyKernel(values.PrepareForInput(DeviceAdapterTag()),
                        stencilArray.PrepareForOutput(inputSize, DeviceAdapterTag()),
-                       binary_compare);
+                       wrappedCompare);
+
     DerivedAlgorithm::Schedule(classifyKernel, inputSize);
 
     vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic>
@@ -694,5 +692,119 @@ template<typename T, typename U, class CIn, class CStencil, class COut>
 }
 }
 } // namespace vtkm::cont::internal
+
+namespace vtkm {
+namespace cont {
+/// \brief Class providing a device-specific atomic interface.
+///
+/// The class provide the actual implementation used by vtkm::exec::AtomicArray.
+/// A serial default implementation is provided. But each device will have a different
+/// implementation.
+///
+/// Serial requires no form of atomicity
+///
+template<typename T, typename DeviceTag>
+class DeviceAdapterAtomicArrayImplementation
+{
+public:
+  VTKM_CONT_EXPORT
+  DeviceAdapterAtomicArrayImplementation(
+               vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic> handle):
+    Iterators( IteratorsType( handle.PrepareForInPlace(DeviceTag()) ) )
+  {
+  }
+
+  VTKM_EXEC_EXPORT
+  T Add(vtkm::Id index, const T& value) const
+  {
+    T* lockedValue;
+#if defined(VTKM_MSVC)
+    typedef typename vtkm::cont::ArrayPortalToIterators<PortalType>::IteratorType IteratorType;
+    typename IteratorType::pointer temp = &(*(Iterators.GetBegin()+index));
+    lockedValue = temp;
+    return vtkmAtomicAdd(lockedValue, value);
+#else
+    lockedValue = (Iterators.GetBegin()+index);
+    return vtkmAtomicAdd(lockedValue, value);
+#endif
+  }
+
+  VTKM_EXEC_EXPORT
+  T CompareAndSwap(vtkm::Id index, const T& newValue, const T& oldValue) const
+  {
+    T* lockedValue;
+#if defined(VTKM_MSVC)
+    typedef typename vtkm::cont::ArrayPortalToIterators<PortalType>::IteratorType IteratorType;
+    typename IteratorType::pointer temp = &(*(Iterators.GetBegin()+index));
+    lockedValue = temp;
+    return vtkmCompareAndSwap(lockedValue, newValue, oldValue);
+#else
+    lockedValue = (Iterators.GetBegin()+index);
+    return vtkmCompareAndSwap(lockedValue, newValue, oldValue);
+#endif
+  }
+
+private:
+  typedef typename vtkm::cont::ArrayHandle<T,vtkm::cont::StorageTagBasic>
+        ::template ExecutionTypes<DeviceTag>::Portal PortalType;
+  typedef vtkm::cont::ArrayPortalToIterators<PortalType> IteratorsType;
+  IteratorsType Iterators;
+
+#if defined(VTKM_MSVC) //MSVC atomics
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmAtomicAdd(vtkm::Int32 *address, const vtkm::Int32 &value) const
+  {
+    return InterlockedExchangeAdd(reinterpret_cast<volatile long *>(address),value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmAtomicAdd(vtkm::Int64 *address, const vtkm::Int64 &value) const
+  {
+    return InterlockedExchangeAdd64(reinterpret_cast<volatile long long *>(address),value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmCompareAndSwap(vtkm::Int32 *address, const vtkm::Int32 &newValue, const vtkm::Int32 &oldValue) const
+  {
+    return InterlockedCompareExchange(reinterpret_cast<volatile long *>(address),newValue,oldValue);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmCompareAndSwap(vtkm::Int64 *address,const vtkm::Int64 &newValue, const vtkm::Int64 &oldValue) const
+  {
+    return InterlockedCompareExchange64(reinterpret_cast<volatile long long *>(address),newValue, oldValue);
+  }
+
+#else //gcc built-in atomics
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmAtomicAdd(vtkm::Int32 *address, const vtkm::Int32 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmAtomicAdd(vtkm::Int64 *address, const vtkm::Int64 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmCompareAndSwap(vtkm::Int32 *address, const vtkm::Int32 &newValue, const vtkm::Int32 &oldValue) const
+  {
+    return __sync_val_compare_and_swap(address,oldValue, newValue);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmCompareAndSwap(vtkm::Int64 *address,const vtkm::Int64 &newValue, const vtkm::Int64 &oldValue) const
+  {
+    return __sync_val_compare_and_swap(address,oldValue,newValue);
+  }
+
+#endif
+};
+
+}
+} // namespace vtkm::cont
 
 #endif //vtk_m_cont_internal_DeviceAdapterAlgorithmGeneral_h

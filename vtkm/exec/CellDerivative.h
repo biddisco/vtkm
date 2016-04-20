@@ -621,18 +621,20 @@ CellDerivative(const FieldVecType &pointFieldValues,
                vtkm::CellShapeTagGeneric shape,
                const vtkm::exec::FunctorBase &worklet)
 {
+  vtkm::Vec<typename FieldVecType::ComponentType,3> result;
   switch (shape.Id)
   {
     vtkmGenericCellShapeMacro(
-          return CellDerivative(pointFieldValues,
-                                worldCoordinateValues,
-                                parametricCoords,
-                                CellShapeTag(),
-                                worklet));
+          result = CellDerivative(pointFieldValues,
+                                  worldCoordinateValues,
+                                  parametricCoords,
+                                  CellShapeTag(),
+                                  worklet));
     default:
       worklet.RaiseError("Unknown cell shape sent to derivative.");
       return vtkm::Vec<typename FieldVecType::ComponentType,3>();
   }
+  return result;
 }
 
 //-----------------------------------------------------------------------------
@@ -849,8 +851,8 @@ CellDerivative(const FieldVecType &field,
     fieldCenter = fieldCenter + field[pointIndex];
     wcoordCenter = wcoordCenter + wCoords[pointIndex];
   }
-  fieldCenter = fieldCenter*FieldType(1.0f/numPoints);
-  wcoordCenter = wcoordCenter*WCoordType(1.0f/numPoints);
+  fieldCenter = fieldCenter*FieldType(1.0f/static_cast<float>(numPoints));
+  wcoordCenter = wcoordCenter*WCoordType(1.0f/static_cast<float>(numPoints));
 
   ParametricCoordType angle;
   if ((vtkm::Abs(pcoords[0]-0.5f) < 4*vtkm::Epsilon<ParametricCoordType>()) &&

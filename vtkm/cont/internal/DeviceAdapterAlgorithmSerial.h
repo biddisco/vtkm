@@ -226,9 +226,9 @@ public:
     //into a standard copy, causing the above issue.
     T lastValue = inputPortal.Get(numberOfValues - 1);
     for(vtkm::Id i=(numberOfValues-1); i >= 1; --i)
-      {
+    {
       outputPortal.Set(i, inputPortal.Get(i-1));
-      }
+    }
     outputPortal.Set(0, initialValue);
 
     std::partial_sum(vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
@@ -284,8 +284,11 @@ public:
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
     const vtkm::Id size = numInstances;
+
+VTKM_VECTORIZATION_PRE_LOOP
     for(vtkm::Id i=0; i < size; ++i)
       {
+VTKM_VECTORIZATION_IN_LOOP
       kernel(i);
       }
 
@@ -310,17 +313,15 @@ public:
 
     DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
 
-    vtkm::Id3 index;
     for(vtkm::Id k=0; k < rangeMax[2]; ++k)
       {
-      index[2] = k;
       for(vtkm::Id j=0; j < rangeMax[1]; ++j)
         {
-        index[1] = j;
+VTKM_VECTORIZATION_PRE_LOOP
         for(vtkm::Id i=0; i < rangeMax[0]; ++i)
           {
-          index[0] = i;
-          kernel( index );
+VTKM_VECTORIZATION_IN_LOOP
+          kernel(vtkm::Id3(i, j, k));
           }
         }
       }
@@ -355,7 +356,7 @@ private:
 
     for (vtkm::Id i=0; i<n; i++)
     {
-       valuesOutPortal.Set( i, valuesPortal.Get(indexPortal.Get(i)) );
+      valuesOutPortal.Set( i, valuesPortal.Get(indexPortal.Get(i)) );
     }
   }
 
@@ -401,7 +402,7 @@ public:
       /// More efficient sort:
       /// Move value indexes when sorting and reorder the value array at last
       typedef vtkm::cont::ArrayHandle<U,StorageU> ValueType;
-      typedef vtkm::cont::ArrayHandle<vtkm::Id,StorageU> IndexType;
+      typedef vtkm::cont::ArrayHandle<vtkm::Id> IndexType;
 
       IndexType indexArray;
       ValueType valuesScattered;

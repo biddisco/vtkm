@@ -54,27 +54,13 @@ bool TestArrayHandle(const vtkm::cont::ArrayHandle<T, Storage> &ah, const T *exp
 
 inline vtkm::cont::DataSet make_SingleTypeDataSet()
 {
-  using vtkm::cont::Field;
-
-  vtkm::cont::DataSet dataSet;
-
-  const int nVerts = 5;
   typedef vtkm::Vec<vtkm::Float32,3> CoordType;
-  CoordType coordinates[nVerts] = {
-    CoordType(0, 0, 0),
-    CoordType(1, 0, 0),
-    CoordType(1, 1, 0),
-    CoordType(2, 1, 0),
-    CoordType(2, 2, 0)
-  };
-
-  //Set coordinate system
-  dataSet.AddCoordinateSystem(
-        vtkm::cont::CoordinateSystem("coordinates", 1, coordinates, nVerts));
-
-  //Set point scalar
-  vtkm::Float32 vars[nVerts] = {10.1f, 20.1f, 30.2f, 40.2f, 50.3f};
-  dataSet.AddField(Field("pointvar", 1, vtkm::cont::Field::ASSOC_POINTS, vars, nVerts));
+  std::vector< CoordType > coordinates;
+  coordinates.push_back( CoordType(0, 0, 0) );
+  coordinates.push_back( CoordType(1, 0, 0) );
+  coordinates.push_back( CoordType(1, 1, 0) );
+  coordinates.push_back( CoordType(2, 1, 0) );
+  coordinates.push_back( CoordType(2, 2, 0) );
 
   std::vector<vtkm::Id> conn;
   // First Cell
@@ -90,13 +76,17 @@ inline vtkm::cont::DataSet make_SingleTypeDataSet()
   conn.push_back(3);
   conn.push_back(4);
 
-  vtkm::cont::CellSetSingleType<> cellSet(vtkm::CellShapeTagTriangle(),
-                                          "cells");
-  cellSet.FillViaCopy(conn);
+  vtkm::cont::DataSet ds;
+  vtkm::cont::DataSetBuilderExplicit builder;
+  ds = builder.Create(coordinates, vtkm::CellShapeTagTriangle(), conn);
 
-  dataSet.AddCellSet(cellSet);
+  //Set point scalar
+  const int nVerts = 5;
+  vtkm::Float32 vars[nVerts] = {10.1f, 20.1f, 30.2f, 40.2f, 50.3f};
 
-  return dataSet;
+  vtkm::cont::DataSetFieldAdd::AddPointField(ds, "pointvar", vars, nVerts);
+
+  return ds;
 }
 
 void TestDataSet_Explicit()
@@ -113,12 +103,11 @@ void TestDataSet_Explicit()
                                       vtkm::cont::make_ArrayHandle(validIds);
 
   //get the cellset single type from the dataset
-  typedef vtkm::cont::CellSetSingleType<> CellSetType;
-  CellSetType cellSet = dataSet.GetCellSet(0).CastTo<CellSetType>();
+  vtkm::cont::CellSetSingleType<> cellSet;
+  dataSet.GetCellSet(0).CopyTo(cellSet);
 
   //verify that we can create a subset of a singlset
-  typedef vtkm::cont::CellSetPermutation<vtkm::cont::ArrayHandle<vtkm::Id>,
-                                    vtkm::cont::CellSetSingleType<> > SubsetType;
+  typedef vtkm::cont::CellSetPermutation< vtkm::cont::CellSetSingleType<> > SubsetType;
   SubsetType subset;
   subset.Fill(validCellIds,cellSet);
 
@@ -153,7 +142,7 @@ void TestDataSet_Structured2D()
 {
 
   vtkm::cont::testing::MakeTestDataSet testDataSet;
-  vtkm::cont::DataSet dataSet = testDataSet.Make2DRegularDataSet0();
+  vtkm::cont::DataSet dataSet = testDataSet.Make2DUniformDataSet0();
 
   std::vector<vtkm::Id> validIds;
   validIds.push_back(1); //iterate the 2nd cell 4 times
@@ -164,12 +153,11 @@ void TestDataSet_Structured2D()
                                       vtkm::cont::make_ArrayHandle(validIds);
 
 
-  typedef vtkm::cont::CellSetStructured<2> CellSetType;
-  CellSetType cellSet = dataSet.GetCellSet(0).CastTo<CellSetType>();
+  vtkm::cont::CellSetStructured<2> cellSet;
+  dataSet.GetCellSet(0).CopyTo(cellSet);
 
-  //verify that we can create a subset of a 2d RegularDataSet
-  vtkm::cont::CellSetPermutation<vtkm::cont::ArrayHandle<vtkm::Id>,
-                            vtkm::cont::CellSetStructured<2> > subset;
+  //verify that we can create a subset of a 2d UniformDataSet
+  vtkm::cont::CellSetPermutation< vtkm::cont::CellSetStructured<2> > subset;
   subset.Fill(validCellIds,cellSet);
 
   subset.PrintSummary(std::cout);
@@ -201,7 +189,7 @@ void TestDataSet_Structured3D()
 {
 
   vtkm::cont::testing::MakeTestDataSet testDataSet;
-  vtkm::cont::DataSet dataSet = testDataSet.Make3DRegularDataSet0();
+  vtkm::cont::DataSet dataSet = testDataSet.Make3DUniformDataSet0();
 
   std::vector<vtkm::Id> validIds;
   validIds.push_back(1); //iterate the 2nd cell 4 times
@@ -211,12 +199,11 @@ void TestDataSet_Structured3D()
   vtkm::cont::ArrayHandle<vtkm::Id> validCellIds =
                                       vtkm::cont::make_ArrayHandle(validIds);
 
-  typedef vtkm::cont::CellSetStructured<3> CellSetType;
-  CellSetType cellSet = dataSet.GetCellSet(0).CastTo<CellSetType>();
+  vtkm::cont::CellSetStructured<3> cellSet;
+  dataSet.GetCellSet(0).CopyTo(cellSet);
 
-  //verify that we can create a subset of a 2d RegularDataSet
-  vtkm::cont::CellSetPermutation<vtkm::cont::ArrayHandle<vtkm::Id>,
-                            vtkm::cont::CellSetStructured<3> > subset;
+  //verify that we can create a subset of a 2d UniformDataSet
+  vtkm::cont::CellSetPermutation< vtkm::cont::CellSetStructured<3> > subset;
   subset.Fill(validCellIds,cellSet);
 
   subset.PrintSummary(std::cout);

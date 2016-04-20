@@ -30,7 +30,7 @@
 #include <vtkm/cont/testing/Testing.h>
 
 //Suppress warnings about glut being deprecated on OSX
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -80,7 +80,7 @@ vtkm::cont::DataSet MakeTetrahedralizeTestDataSet(vtkm::Id3 dim)
   // Generate coordinate system
   vtkm::cont::ArrayHandleUniformPointCoordinates coordinates(vdims, origin, spacing);
   dataSet.AddCoordinateSystem(
-          vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
+          vtkm::cont::CoordinateSystem("coordinates", coordinates));
 
   // Generate cell set
   vtkm::cont::CellSetStructured<3> cellSet("cells");
@@ -168,7 +168,8 @@ void displayCall()
   glTranslatef(-0.5f, -0.5f, -0.5f);
 
   // Get the cell set, coordinate system and coordinate data
-  vtkm::cont::CellSetSingleType<> &cellSet = tetDataSet.GetCellSet(0).CastTo<vtkm::cont::CellSetSingleType<> >();
+  vtkm::cont::CellSetSingleType<> cellSet;
+  tetDataSet.GetCellSet(0).CopyTo(cellSet);
   const vtkm::cont::DynamicArrayHandleCoordinateSystem &coordArray =
                                       tetDataSet.GetCoordinateSystem(0).GetData();
 
@@ -322,6 +323,6 @@ int main(int argc, char* argv[])
   return 0;
 }
 
-#if (defined(VTKM_GCC) || defined(VTKM_CLANG)) && !defined(VTKM_PGI)
+#if (defined(VTKM_GCC) || defined(VTKM_CLANG))
 # pragma GCC diagnostic pop
 #endif

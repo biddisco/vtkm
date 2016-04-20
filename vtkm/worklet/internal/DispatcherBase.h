@@ -204,13 +204,15 @@ private:
 template<typename ControlInterface>
 struct DispatcherBaseDynamicTransform
 {
+  vtkm::cont::internal::DynamicTransform BasicDynamicTransform;
+
   template<typename InputType,
            typename ContinueFunctor,
            vtkm::IdComponent Index>
   VTKM_CONT_EXPORT
   void operator()(const InputType &input,
                   const ContinueFunctor &continueFunc,
-                  vtkm::internal::IndexTag<Index> indexTag) const
+                  const vtkm::internal::IndexTag<Index>& indexTag) const
   {
     typedef typename ControlInterface::template ParameterType<Index>::type
         ControlSignatureTag;
@@ -219,9 +221,7 @@ struct DispatcherBaseDynamicTransform
         ContinueFunctor, typename ControlSignatureTag::TypeCheckTag, Index>
         TypeCheckFunctor;
 
-    vtkm::cont::internal::DynamicTransform basicDynamicTransform;
-
-    basicDynamicTransform(input, TypeCheckFunctor(continueFunc), indexTag);
+    this->BasicDynamicTransform(input, TypeCheckFunctor(continueFunc), indexTag);
   }
 };
 
@@ -445,6 +445,7 @@ protected:
   {
     this->InvokeTransportParameters(
           invocation,
+          numInstances,
           this->Worklet.GetScatter().GetOutputRange(numInstances),
           device);
   }
@@ -469,6 +470,7 @@ protected:
   {
     this->InvokeTransportParameters(
           invocation,
+          dimensions,
           this->Worklet.GetScatter().GetOutputRange(dimensions),
           device);
   }
@@ -480,10 +482,11 @@ private:
   DispatcherBase(const MyType &);
   void operator=(const MyType &);
 
-  template<typename Invocation, typename RangeType, typename DeviceAdapter>
+  template<typename Invocation, typename InputRangeType, typename OutputRangeType, typename DeviceAdapter>
   VTKM_CONT_EXPORT
   void InvokeTransportParameters(const Invocation &invocation,
-                                 RangeType range,
+                                 const InputRangeType& inputRange,
+                                 const OutputRangeType& outputRange,
                                  DeviceAdapter device) const
   {
     // The first step in invoking a worklet is to transport the arguments to
@@ -504,13 +507,13 @@ private:
         TransportFunctorType>::type ExecObjectParameters;
 
     ExecObjectParameters execObjectParameters =
-        parameters.StaticTransformCont(TransportFunctorType(range));
+        parameters.StaticTransformCont(TransportFunctorType(outputRange));
 
     // Get the arrays used for scattering input to output.
     typename WorkletType::ScatterType::OutputToInputMapType outputToInputMap =
-        this->Worklet.GetScatter().GetOutputToInputMap(range);
+        this->Worklet.GetScatter().GetOutputToInputMap(inputRange);
     typename WorkletType::ScatterType::VisitArrayType visitArray =
-        this->Worklet.GetScatter().GetVisitArray(range);
+        this->Worklet.GetScatter().GetVisitArray(inputRange);
 
     // Replace the parameters in the invocation with the execution object and
     // pass to next step of Invoke. Also add the scatter information.
@@ -519,7 +522,7 @@ private:
           .ChangeParameters(execObjectParameters)
           .ChangeOutputToInputMap(outputToInputMap.PrepareForInput(device))
           .ChangeVisitArray(visitArray.PrepareForInput(device)),
-          range,
+          outputRange,
           device);
   }
 

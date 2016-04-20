@@ -103,6 +103,7 @@ struct ScanInclusiveBody
       OutputPortal(body.OutputPortal),
       BinaryOperation(body.BinaryOperation) {  }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
   void operator()(const ::tbb::blocked_range<vtkm::Id> &range, ::tbb::pre_scan_tag)
   {
@@ -124,6 +125,7 @@ struct ScanInclusiveBody
     this->Sum = temp;
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
   void operator()(const ::tbb::blocked_range<vtkm::Id> &range, ::tbb::final_scan_tag)
   {
@@ -152,12 +154,14 @@ struct ScanInclusiveBody
     this->Sum = temp;
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_CONT_EXPORT
   void reverse_join(const ScanInclusiveBody &left)
   {
     this->Sum = this->BinaryOperation(left.Sum, this->Sum);
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_CONT_EXPORT
   void assign(const ScanInclusiveBody &src)
   {
@@ -199,6 +203,7 @@ struct ScanExclusiveBody
       BinaryOperation(body.BinaryOperation)
   {  }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
   void operator()(const ::tbb::blocked_range<vtkm::Id> &range, ::tbb::pre_scan_tag)
   {
@@ -217,6 +222,7 @@ struct ScanExclusiveBody
     this->Sum = temp;
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_EXPORT
   void operator()(const ::tbb::blocked_range<vtkm::Id> &range, ::tbb::final_scan_tag)
   {
@@ -246,12 +252,14 @@ struct ScanExclusiveBody
     this->Sum = temp;
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_CONT_EXPORT
   void reverse_join(const ScanExclusiveBody &left)
   {
     this->Sum = this->BinaryOperation(left.Sum, this->Sum);
   }
 
+  VTKM_SUPPRESS_EXEC_WARNINGS
   VTKM_EXEC_CONT_EXPORT
   void assign(const ScanExclusiveBody &src)
   {
@@ -261,6 +269,7 @@ struct ScanExclusiveBody
 
 template<class InputPortalType, class OutputPortalType,
     class BinaryOperationType>
+VTKM_SUPPRESS_EXEC_WARNINGS
 VTKM_CONT_EXPORT static
 typename boost::remove_reference<typename OutputPortalType::ValueType>::type
 ScanInclusivePortals(InputPortalType inputPortal,
@@ -285,6 +294,7 @@ ScanInclusivePortals(InputPortalType inputPortal,
 
 template<class InputPortalType, class OutputPortalType,
     class BinaryOperationType>
+VTKM_SUPPRESS_EXEC_WARNINGS
 VTKM_CONT_EXPORT static
 typename boost::remove_reference<typename OutputPortalType::ValueType>::type
 ScanExclusivePortals(InputPortalType inputPortal,
@@ -337,8 +347,12 @@ public:
     // error and setting the message buffer as expected.
     try
       {
-      for (vtkm::Id index = range.begin(); index < range.end(); index++)
+      const vtkm::Id start = range.begin();
+      const vtkm::Id end = range.end();
+VTKM_VECTORIZATION_PRE_LOOP
+      for (vtkm::Id index = start; index != end; index++)
         {
+VTKM_VECTORIZATION_IN_LOOP
         this->Functor(index);
         }
       }
@@ -379,17 +393,17 @@ public:
   void operator()(const ::tbb::blocked_range3d<vtkm::Id> &range) const {
     try
       {
-      vtkm::Id3 index;
       for( vtkm::Id k=range.pages().begin(); k!=range.pages().end(); ++k)
         {
-        index[2] = k;
         for( vtkm::Id j=range.rows().begin(); j!=range.rows().end(); ++j)
           {
-          index[1] = j;
-          for( vtkm::Id i=range.cols().begin(); i!=range.cols().end(); ++i)
+          const vtkm::Id start =range.cols().begin();
+          const vtkm::Id end = range.cols().end();
+VTKM_VECTORIZATION_PRE_LOOP
+          for( vtkm::Id i=start; i != end; ++i)
             {
-            index[0] = i;
-            this->Functor( index );
+VTKM_VECTORIZATION_IN_LOOP
+            this->Functor(vtkm::Id3(i, j, k));
             }
           }
         }
@@ -435,8 +449,10 @@ public:
     // error and setting the message buffer as expected.
     try
       {
+VTKM_VECTORIZATION_PRE_LOOP
       for (vtkm::Id i = range.begin(); i < range.end(); i++)
         {
+VTKM_VECTORIZATION_IN_LOOP
         OutputPortal.Set( i, ValuesPortal.Get(IndexPortal.Get(i)) );
         }
       }
@@ -460,6 +476,7 @@ private:
 template<typename InputPortalType,
          typename IndexPortalType,
          typename OutputPortalType>
+VTKM_SUPPRESS_EXEC_WARNINGS
 VTKM_CONT_EXPORT static void ScatterPortal(InputPortalType  inputPortal,
                                            IndexPortalType  indexPortal,
                                            OutputPortalType outputPortal)
@@ -481,4 +498,3 @@ VTKM_CONT_EXPORT static void ScatterPortal(InputPortalType  inputPortal,
 }
 }
 #endif //vtk_m_cont_tbb_internal_FunctorsTBB_h
-

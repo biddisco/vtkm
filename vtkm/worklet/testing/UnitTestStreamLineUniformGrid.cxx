@@ -42,7 +42,7 @@ vtkm::Vec<T,3> Normalize(vtkm::Vec<T,3> v)
     return one / magnitude * v;
 }
 
-float data[125*3] = 
+float data[125*3] =
 {
 -0.00603248f, -0.0966396f, -0.000732792f,
 0.000530014f, -0.0986189f, -0.000806706f,
@@ -205,8 +205,8 @@ void TestStreamLineUniformGrid()
   // Construct the input dataset (uniform) to hold the input and set vector data
   vtkm::cont::DataSet inDataSet;
   vtkm::cont::ArrayHandleUniformPointCoordinates coordinates(vdims);
-  inDataSet.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", 1, coordinates));
-  inDataSet.AddField(vtkm::cont::Field("vecData", 1, vtkm::cont::Field::ASSOC_POINTS, fieldArray));
+  inDataSet.AddCoordinateSystem(vtkm::cont::CoordinateSystem("coordinates", coordinates));
+  inDataSet.AddField(vtkm::cont::Field("vecData", vtkm::cont::Field::ASSOC_POINTS, fieldArray));
 
   vtkm::cont::CellSetStructured<3> inCellSet("cells");
   inCellSet.SetPointDimensions(vtkm::make_Vec(vdims[0], vdims[1], vdims[2]));
@@ -221,8 +221,8 @@ void TestStreamLineUniformGrid()
                                                         timeStep);
 
   // Check output
-  vtkm::cont::CellSetExplicit<> &outCellSet =
-    outDataSet.GetCellSet(0).CastTo<vtkm::cont::CellSetExplicit<> >();
+  vtkm::cont::CellSetExplicit<> outCellSet;
+  outDataSet.GetCellSet(0).CopyTo(outCellSet);
   const vtkm::cont::DynamicArrayHandleCoordinateSystem &coordArray =
                                       outDataSet.GetCoordinateSystem(0).GetData();
 

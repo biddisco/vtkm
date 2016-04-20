@@ -24,6 +24,8 @@
 
 #include <vtkm/cont/ArrayPortalToIterators.h>
 
+#include "iterator"
+
 namespace vtkm {
 namespace io {
 namespace reader {
@@ -43,15 +45,20 @@ inline vtkm::cont::ArrayHandle<T> ConcatinateArrayHandles(
   vtkm::cont::ArrayHandle<T> out;
   out.Allocate(size);
 
-  typename vtkm::cont::ArrayPortalToIterators<
-      typename vtkm::cont::ArrayHandle<T>::PortalControl>::IteratorType outp =
-      vtkm::cont::ArrayPortalToIteratorBegin(out.GetPortalControl());
+  typedef typename vtkm::cont::ArrayPortalToIterators<
+    typename vtkm::cont::ArrayHandle<T>::PortalControl>::IteratorType
+    IteratorType;
+  IteratorType outp =
+    vtkm::cont::ArrayPortalToIteratorBegin(out.GetPortalControl());
   for (std::size_t i = 0; i < arrays.size(); ++i)
   {
     std::copy(vtkm::cont::ArrayPortalToIteratorBegin(arrays[i].GetPortalConstControl()),
               vtkm::cont::ArrayPortalToIteratorEnd(arrays[i].GetPortalConstControl()),
               outp);
-    outp += arrays[i].GetNumberOfValues();
+    typedef typename std::iterator_traits<IteratorType>::difference_type
+        DifferenceType;
+    std::advance(
+          outp, static_cast<DifferenceType>(arrays[i].GetNumberOfValues()));
   }
 
   return out;
@@ -74,7 +81,19 @@ private:
       throw vtkm::io::ErrorIO("Incorrect DataSet type");
     }
 
+    //We need to be able to handle VisIt files which dump Field data
+    //at the top of a VTK file
     std::string tag;
+    this->DataFile->Stream >> tag;
+    internal::parseAssert(tag == "POINTS" || tag == "FIELD");
+
+    if(tag == "FIELD")
+    {
+      std::string name;
+      this->ReadFields(name);
+      this->DataFile->Stream >> tag;
+      internal::parseAssert(tag == "POINTS");
+    }
 
     // Read the points
     this->ReadPoints();

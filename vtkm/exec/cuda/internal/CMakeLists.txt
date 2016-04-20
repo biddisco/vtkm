@@ -23,6 +23,7 @@ set(headers
   ExecutionPolicy.h
   IteratorFromArrayPortal.h
   WrappedOperators.h
+  ThrustPatches.h
   )
 
 #-----------------------------------------------------------------------------
@@ -32,3 +33,12 @@ if (VTKm_ENABLE_CUDA)
 endif()
 
 vtkm_declare_headers(CUDA ${headers} TESTABLE ${VTKm_ENABLE_CUDA})
+
+set_source_files_properties(ThrustPatches.h
+                            PROPERTIES VTKm_CANT_BE_HEADER_TESTED TRUE)
+
+#-----------------------------------------------------------------------------
+if (VTKm_ENABLE_CUDA)
+  add_subdirectory(testing)
+endif()
+

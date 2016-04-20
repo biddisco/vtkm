@@ -18,7 +18,7 @@
 ##  this software.
 ##============================================================================
 
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 2.8.12)
 
 #setup policy rules for CMake 3.0 while we have a minimum required of 2.8.X
 if(POLICY CMP0025)
@@ -122,6 +122,7 @@ option(VTKm_ENABLE_BENCHMARKS "Enable VTKm Benchmarking" OFF)
 
 option(VTKm_BUILD_DOCUMENTATION "Build Doxygen documentation" OFF)
 option(VTKm_BUILD_EXAMPLES "Build examples" OFF)
+option(VTKm_BUILD_RENDERING "Build rendering" OFF)
 
 option(VTKm_USE_DOUBLE_PRECISION
   "Use double precision for floating point calculations"
@@ -132,6 +133,8 @@ option(VTKm_USE_64BIT_IDS "Use 64-bit indices." ON)
 if (VTKm_ENABLE_TESTING)
   enable_testing()
   include(CTest)
+  configure_file(${VTKm_SOURCE_DIR}/CTestCustom.cmake.in
+    ${VTKm_BINARY_DIR}/CTestCustom.cmake @ONLY)
 endif()
 
 #-----------------------------------------------------------------------------
@@ -331,11 +334,22 @@ install(
 # Install Use files.
 install(
   FILES
+    ${VTKm_SOURCE_DIR}/CMake/UseVTKmBase.cmake
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmSerial.cmake
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmTBB.cmake
     ${VTKm_SOURCE_DIR}/CMake/UseVTKmCUDA.cmake
   DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
   )
+
+# Install support files.
+install(
+  FILES
+    ${VTKm_SOURCE_DIR}/CMake/VTKmMacros.cmake
+    ${VTKm_SOURCE_DIR}/CMake/VTKmCompilerOptimizations.cmake
+    ${VTKm_SOURCE_DIR}/CMake/VTKmDetectCUDAVersion.cxx
+  DESTINATION ${VTKm_INSTALL_CMAKE_MODULE_DIR}
+  )
+
 
 
 # Enable CPack packaging
