@@ -79,15 +79,17 @@ if(VTKm_ENABLE_HPX)
     set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
     include_directories(${HPX_INCLUDE_DIRS})
 else()
-  #-----------------------------------------------------------------------------
-  # List of Boost features used:
-  # * Smart Ptr
-  # * Meta programming language
-  # We check for boost first, as the device configuration code requires boost
-  # to be found
-  find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
-  if(NOT Boost_FOUND)
-    message(FATAL_ERROR "Please specify where to find boost headers (${VTKm_REQUIRED_BOOST_VERSION}+)" )
+  if (NOT Boost_FOUND)
+    #-----------------------------------------------------------------------------
+    # List of Boost features used:
+    # * Smart Ptr
+    # * Meta programming language
+    # We check for boost first, as the device configuration code requires boost
+    # to be found
+    find_package(BoostHeaders ${VTKm_REQUIRED_BOOST_VERSION} REQUIRED)
+    if(NOT Boost_FOUND)
+      message(FATAL_ERROR "Please specify where to find boost headers (${VTKm_REQUIRED_BOOST_VERSION}+)" )
+    endif()
   endif()
 endif()
 

@@ -26,9 +26,9 @@
 //a valid tag when VTKM_ENABLE_HPX is true. This is for easier development
 //of multi-backend systems
 #ifdef VTKM_ENABLE_HPX
-VTKM_VALID_DEVICE_ADAPTER(HPX);
+VTKM_VALID_DEVICE_ADAPTER(HPX, VTKM_DEVICE_ADAPTER_HPX);
 #else
-VTKM_INVALID_DEVICE_ADAPTER(HPX);
+VTKM_INVALID_DEVICE_ADAPTER(HPX, VTKM_DEVICE_ADAPTER_HPX);
 #endif
 
 #endif //vtk_m_cont_internal_DeviceAdapterTagHPX_h

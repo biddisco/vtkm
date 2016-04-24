@@ -40,7 +40,6 @@ VTKM_THIRDPARTY_PRE_INCLUDE
 VTKM_THIRDPARTY_POST_INCLUDE
 
 #include <vector>
-#include <iostream>
 
 namespace vtkm {
 namespace cont {
@@ -777,4 +776,5 @@ printSummary_ArrayHandle(const vtkm::cont::ArrayHandle<vtkm::UInt8,StorageT> &ar
 
 }
 }
+
 #endif //vtk_m_cont_ArrayHandle_h

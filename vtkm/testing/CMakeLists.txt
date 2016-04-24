@@ -49,6 +49,4 @@ set(unit_tests
   UnitTestVecVariable.cxx
   )
 
-add_executable(handlecheck ArrayHandleTest.cxx)
-
 VTKM_unit_tests(SOURCES ${unit_tests})
