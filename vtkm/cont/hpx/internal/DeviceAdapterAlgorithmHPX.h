@@ -227,7 +227,7 @@ public:
       initialValue,
       wrappedOp);
 
-    result =  outputPortal.Get(numberOfValues - 1) + temp;
+    result =  binary_functor(outputPortal.Get(numberOfValues - 1), temp);
     return result;
   }
 /*
