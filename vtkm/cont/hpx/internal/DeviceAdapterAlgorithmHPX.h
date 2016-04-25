@@ -26,14 +26,14 @@
 // include HPX headers before vtkm+boost to avoid problems with definitions
 #include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
 #include <hpx/parallel/algorithms/for_each.hpp>
-#include <hpx/include/parallel_scan.hpp> 
+#include <hpx/include/parallel_scan.hpp>
+#include <hpx/parallel/algorithms/sort.hpp>
 //
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
 #include <vtkm/cont/DeviceAdapterAlgorithm.h>
 #include <vtkm/cont/ErrorExecution.h>
 #include <vtkm/cont/internal/DeviceAdapterAlgorithmGeneral.h>
-#include <vtkm/cont/testing/TestingDeviceAdapter.h>
 
 #include <vtkm/exec/internal/ErrorMessageBuffer.h>
 
@@ -59,7 +59,7 @@ namespace cont {
     {
         constexpr static T call() { return T(); }
     };
-    
+
     template <typename T>
     struct initial_value<vtkm::cont::internal::WrappedBinaryOperator<T, vtkm::internal::Multiply> >
     {
@@ -111,7 +111,7 @@ public:
     );
 */
 
-    hpx::parallel::inclusive_scan(hpx::parallel::par, 
+    hpx::parallel::inclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
@@ -183,8 +183,8 @@ public:
     // the calculation is 'in place' so get this value before it is overwritten
     T temp = inputPortal.Get(numberOfValues - 1);
 
-    // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue = 
-    hpx::parallel::exclusive_scan(hpx::parallel::par, 
+    // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
+    hpx::parallel::exclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal), T());
@@ -506,31 +506,35 @@ public:
     typedef typename vtkm::cont::ArrayHandle<T,Storage>
         ::template ExecutionTypes<Device>::Portal PortalType;
 
-    std::cout << "Entering Sort algorithm" << std::endl;
-    PortalType arrayPortal = values.PrepareForInPlace(Device());
-    vtkm::cont::ArrayPortalToIterators<PortalType> iterators(arrayPortal);
-    std::sort(iterators.GetBegin(), iterators.GetEnd());
+    //this is required to get sort to work with zip handles
+    std::less< T > lessOp;
+    Sort(values, lessOp );
   }
 
   //----------------------------------------------------------------------------
-  template<typename T, class Storage, class BinaryFunctor>
+  template<typename T, class Storage, class BinaryCompare>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values,
-          BinaryFunctor binary_functor)
+      BinaryCompare binary_compare)
   {
-    typedef typename vtkm::cont::ArrayHandle<T,Storage>
-        ::template ExecutionTypes<Device>::Portal PortalType;
-std::cout << "Entering Sort algorithm (functor)" << std::endl;
-    internal::WrappedBinaryOperator<bool, BinaryFunctor> wrappedOp( binary_functor );
+      typedef typename vtkm::cont::ArrayHandle<T,Storage>::template
+          ExecutionTypes<vtkm::cont::DeviceAdapterTagHPX>::Portal PortalType;
 
-    PortalType arrayPortal = values.PrepareForInPlace(Device());
-    vtkm::cont::ArrayPortalToIterators<PortalType> iterators(arrayPortal);
-    std::sort(iterators.GetBegin(), iterators.GetEnd(), wrappedOp);
+      PortalType arrayPortal = values.PrepareForInPlace(
+          vtkm::cont::DeviceAdapterTagHPX());
+
+      typedef vtkm::cont::ArrayPortalToIterators<PortalType> IteratorsType;
+      IteratorsType iterators(arrayPortal);
+
+      internal::WrappedBinaryOperator<bool,BinaryCompare> wrappedCompare(binary_compare);
+
+      hpx::parallel::sort(hpx::parallel::par, iterators.GetBegin(), iterators.GetEnd(),
+          wrappedCompare);
   }
 
   //----------------------------------------------------------------------------
   VTKM_CONT_EXPORT static void Synchronize()
   {
-    // Nothing to do. This device is HPX and has no asynchronous operations.
+    // @TODO. not sure what's needed here
   }
 
 };
