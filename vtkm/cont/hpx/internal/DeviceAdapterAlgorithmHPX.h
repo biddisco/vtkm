@@ -31,6 +31,7 @@
 #include <hpx/parallel/algorithms/sort.hpp>
 #include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/reduce_by_key.hpp>
+#include <hpx/parallel/algorithms/copy.hpp>
 //
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
@@ -334,6 +335,25 @@ public:
     keys_output.Shrink( reduced_size );
     values_output.Shrink( reduced_size );
   }
+
+  //--------------------------------------------------------------------------
+  // Copy
+  template<typename T, typename U, class CIn, class COut>
+  VTKM_CONT_EXPORT static void Copy(const vtkm::cont::ArrayHandle<T, CIn> &input,
+                                    vtkm::cont::ArrayHandle<U, COut> &output)
+  {
+    vtkm::Id arraySize = input.GetNumberOfValues();
+
+    auto inputPortal = input.PrepareForInput(Device());
+    auto oututPortal = output.PrepareForOutput(arraySize, Device());
+
+    hpx::parallel::copy(
+        hpx::parallel::par,
+        vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+        vtkm::cont::ArrayPortalToIteratorBegin(oututPortal));
+  }
+
 private:
   //----------------------------------------------------------------------------
   // This runs in the execution environment.
