@@ -29,6 +29,7 @@
 #include <hpx/parallel/algorithms/inclusive_scan.hpp>
 #include <hpx/parallel/algorithms/exclusive_scan.hpp>
 #include <hpx/parallel/algorithms/sort.hpp>
+#include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/reduce_by_key.hpp>
 //
 #include <vtkm/cont/ArrayHandle.h>
@@ -232,6 +233,50 @@ public:
     result =  binary_functor(outputPortal.Get(numberOfValues - 1), temp);
     return result;
   }
+
+  //----------------------------------------------------------------------------
+  template<typename T, class SIn>
+   VTKM_CONT_EXPORT static T Reduce(
+       const vtkm::cont::ArrayHandle<T,SIn> &input,
+       T initialValue)
+   {
+     const vtkm::Id numberOfValues = input.GetNumberOfValues();
+     if (numberOfValues <= 0)
+       {
+       return initialValue;
+       }
+
+     auto inputPortal = input.PrepareForInput(Device());
+
+     return hpx::parallel::reduce(
+         hpx::parallel::par,
+         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+         std::forward<T>(initialValue));
+   }
+
+  //----------------------------------------------------------------------------
+  template<typename T, class SIn, class BinaryFunctor>
+   VTKM_CONT_EXPORT static T Reduce(
+       const vtkm::cont::ArrayHandle<T,SIn> &input,
+       T initialValue,
+       BinaryFunctor binary_functor)
+   {
+     const vtkm::Id numberOfValues = input.GetNumberOfValues();
+     if (numberOfValues <= 0)
+       {
+       return initialValue;
+       }
+
+     auto inputPortal = input.PrepareForInput(Device());
+
+     return hpx::parallel::reduce(
+         hpx::parallel::par,
+         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
+         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
+         std::forward<T>(initialValue),
+         std::forward<BinaryFunctor>(binary_functor));
+   }
 
   //----------------------------------------------------------------------------
   template<typename T, typename U, class KIn, class VIn, class KOut, class VOut,
