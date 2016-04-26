@@ -385,7 +385,91 @@ public:
 
 };
 
-}
-} // namespace vtkm::cont
+}} // namespace vtkm::cont
+
+namespace vtkm {
+namespace cont {
+
+template<typename T>
+class DeviceAdapterAtomicArrayImplementation<T,vtkm::cont::DeviceAdapterTagHPX>
+{
+public:
+  VTKM_CONT_EXPORT
+  DeviceAdapterAtomicArrayImplementation(
+               vtkm::cont::ArrayHandle<T, vtkm::cont::StorageTagBasic> handle):
+    Iterators( IteratorsType( handle.PrepareForInPlace(
+                                      vtkm::cont::DeviceAdapterTagHPX())
+                             ) )
+  {
+  }
+
+  VTKM_EXEC_EXPORT
+  T Add(vtkm::Id index, const T& value) const
+  {
+    T* lockedValue;
+    lockedValue = (Iterators.GetBegin()+index);
+    return vtkmAtomicAdd(lockedValue, value);
+  }
+
+  VTKM_EXEC_EXPORT
+  T CompareAndSwap(vtkm::Id index, const T& newValue, const T& oldValue) const
+  {
+    T* lockedValue;
+    lockedValue = (Iterators.GetBegin()+index);
+    return vtkmCompareAndSwap(lockedValue, newValue, oldValue);
+  }
+
+private:
+  typedef typename vtkm::cont::ArrayHandle<T,vtkm::cont::StorageTagBasic>
+        ::template ExecutionTypes<DeviceAdapterTagHPX>::Portal PortalType;
+  typedef vtkm::cont::ArrayPortalToIterators<PortalType> IteratorsType;
+
+  IteratorsType Iterators;
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmAtomicAdd(vtkm::Int32 *address, const vtkm::Int32 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmAtomicAdd(vtkm::Int64 *address, const vtkm::Int64 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::UInt32 vtkmAtomicAdd(vtkm::UInt32 *address, const vtkm::UInt32 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::UInt64 vtkmAtomicAdd(vtkm::UInt64 *address, const vtkm::UInt64 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+/*
+  VTKM_EXEC_EXPORT
+  vtkm::UInt32 vtkmAtomicAdd(vtkm::Float32 *address, const vtkm::Float32 &value) const
+  {
+    return __sync_fetch_and_add(address,value);
+  }
+*/
+  VTKM_EXEC_EXPORT
+  vtkm::Int32 vtkmCompareAndSwap(vtkm::Int32 *address, const vtkm::Int32 &newValue, const vtkm::Int32 &oldValue) const
+  {
+    return __sync_val_compare_and_swap(address,oldValue, newValue);
+  }
+
+  VTKM_EXEC_EXPORT
+  vtkm::Int64 vtkmCompareAndSwap(vtkm::Int64 *address,const vtkm::Int64 &newValue, const vtkm::Int64 &oldValue) const
+  {
+    return __sync_val_compare_and_swap(address,oldValue,newValue);
+  }
+
+};
+}}
+
 
 #endif //vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
