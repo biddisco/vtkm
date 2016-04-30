@@ -29,6 +29,7 @@
 #include <hpx/parallel/algorithms/inclusive_scan.hpp>
 #include <hpx/parallel/algorithms/exclusive_scan.hpp>
 #include <hpx/parallel/algorithms/sort.hpp>
+#include <hpx/parallel/algorithms/sort_by_key.hpp>
 #include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/reduce_by_key.hpp>
 #include <hpx/parallel/algorithms/copy.hpp>
@@ -418,9 +419,7 @@ public:
     typedef typename vtkm::cont::ArrayHandle<T,Storage>
         ::template ExecutionTypes<Device>::Portal PortalType;
 
-    //this is required to get sort to work with zip handles
-    std::less< T > lessOp;
-    Sort(values, lessOp );
+    Sort(values, std::less< T >() );
   }
 
   //----------------------------------------------------------------------------
@@ -439,6 +438,36 @@ public:
       internal::WrappedBinaryOperator<bool,BinaryCompare> wrappedCompare(binary_compare);
 
       hpx::parallel::sort(hpx::parallel::par, iterators.GetBegin(), iterators.GetEnd(),
+          wrappedCompare);
+  }
+
+  //----------------------------------------------------------------------------
+  template<typename T, typename U, class StorageT,  class StorageU>
+  VTKM_CONT_EXPORT static void SortByKey(
+      vtkm::cont::ArrayHandle<T,StorageT> &keys,
+      vtkm::cont::ArrayHandle<U,StorageU> &values)
+  {
+    SortByKey(keys, values, std::less<T>());
+  }
+
+  //----------------------------------------------------------------------------
+  template<typename T, typename U,
+           class StorageT, class StorageU,
+           class BinaryCompare>
+  VTKM_CONT_EXPORT static void SortByKey(
+      vtkm::cont::ArrayHandle<T,StorageT>& keys,
+      vtkm::cont::ArrayHandle<U,StorageU>& values,
+      BinaryCompare binary_compare)
+  {
+      auto arrayPortal_k = keys.PrepareForInPlace(Device());
+      auto arrayPortal_v = values.PrepareForInPlace(Device());
+
+      internal::WrappedBinaryOperator<bool,BinaryCompare> wrappedCompare(binary_compare);
+
+      hpx::parallel::sort_by_key(hpx::parallel::par,
+          vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal_k),
+          vtkm::cont::ArrayPortalToIteratorEnd(arrayPortal_k),
+          vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal_v),
           wrappedCompare);
   }
 
