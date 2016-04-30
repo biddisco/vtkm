@@ -486,16 +486,29 @@ endfunction(vtkm_worklet_unit_tests)
 # notes: will save the sources absolute path as the
 # vtkm_benchmarks_sources global property
 function(vtkm_save_benchmarks)
+  set(options HPX CUDA TBB SERIAL)
+  set(oneValueArgs)
+  set(multiValueArgs)
+  cmake_parse_arguments(VTKm_UT
+    "${options}" "${oneValueArgs}" "${multiValueArgs}"
+    ${ARGN}
+    )
 
   #create the benchmarks driver when we are called, since
   #the driver expects the files to be in the same
   #directory as the test driver
         #TODO: This is probably ok to use for benchmarks as well
-  create_test_sourcelist(bench_sources BenchmarkDriver.cxx ${ARGN})
+  if(VTKm_UT_HPX)
+    create_test_sourcelist(bench_sources BenchmarkDriver_HPX.cxx ${VTKm_UT_UNPARSED_ARGUMENTS}
+      EXTRA_INCLUDE "vtkm/cont/hpx/vtkm_hpx.hpp")
+    set(driver ${CMAKE_CURRENT_BINARY_DIR}/BenchmarkDriver_HPX.cxx)
+  else()
+    create_test_sourcelist(bench_sources BenchmarkDriver.cxx ${VTKm_UT_UNPARSED_ARGUMENTS})
+    set(driver ${CMAKE_CURRENT_BINARY_DIR}/BenchmarkDriver.cxx)
+  endif()
 
   #store the absolute path for the driver and all the test
   #files
-  set(driver ${CMAKE_CURRENT_BINARY_DIR}/BenchmarkDriver.cxx)
   set(cxx_sources)
   set(cu_sources)
 
@@ -504,7 +517,7 @@ function(vtkm_save_benchmarks)
   #the same time we want to configure each file into the build
   #directory as a .cu file so that we can compile it with cuda
   #if needed
-  foreach(fname ${ARGN})
+  foreach(fname ${VTKm_UT_UNPARSED_ARGUMENTS})
     set(absPath)
 
     get_filename_component(absPath ${fname} ABSOLUTE)
@@ -529,6 +542,16 @@ function(vtkm_save_benchmarks)
                 PROPERTY vtkm_benchmarks_drivers ${driver})
 
 endfunction(vtkm_save_benchmarks)
+
+function(vtkm_clear_benchmarks)
+  set_property( GLOBAL 
+                PROPERTY vtkm_benchmarks_sources "")
+  set_property( GLOBAL 
+                PROPERTY vtkm_benchmarks_cu_sources "")
+  set_property( GLOBAL 
+                PROPERTY vtkm_benchmarks_drivers "")
+endfunction(vtkm_clear_benchmarks)
+
 
 # Call each benchmark for the given device adapter
 # Usage:
@@ -555,6 +578,11 @@ function(vtkm_benchmarks device_adapter)
     set(is_cuda TRUE)
   endif()
 
+  set(is_hpx false)
+  if("${device_adapter}" STREQUAL "VTKM_DEVICE_ADAPTER_HPX")
+    set(is_hpx true)
+  endif()
+
   if(VTKm_ENABLE_BENCHMARKS AND VTKm_ENABLE_TESTING)
     string(REPLACE "VTKM_DEVICE_ADAPTER_" "" device_type ${device_adapter})
 
@@ -568,6 +596,11 @@ function(vtkm_benchmarks device_adapter)
       get_property(benchmark_srcs GLOBAL PROPERTY vtkm_benchmarks_cu_sources )
       cuda_add_executable(${benchmark_prog} ${benchmark_drivers} ${benchmark_srcs})
       set(CUDA_NVCC_FLAGS ${old_nvcc_flags})
+    elseif(is_hpx)
+      link_directories(${Boost_LIBRARY_DIRS})
+      add_executable(${benchmark_prog} ${benchmark_drivers} ${benchmark_srcs})
+      target_compile_definitions(${benchmark_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
+      target_link_libraries(${benchmark_prog} hpx hpx_init ${Boost_LIBRARIES})
     else()
       add_executable(${benchmark_prog} ${benchmark_drivers} ${benchmark_srcs})
       target_link_libraries(${benchmark_prog} ${VTKm_LIBRARIES})

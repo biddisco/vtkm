@@ -22,14 +22,23 @@ set(benchmarks
 	BenchmarkDeviceAdapter.cxx
   )
 
-vtkm_save_benchmarks(${benchmarks})
-
+vtkm_clear_benchmarks()
+vtkm_save_benchmarks(SERIAL ${benchmarks})
 vtkm_benchmarks(VTKM_DEVICE_ADAPTER_SERIAL)
 
 if (VTKm_ENABLE_CUDA)
+  vtkm_clear_benchmarks()
+  vtkm_save_benchmarks(CUDA ${benchmarks})
   vtkm_benchmarks(VTKM_DEVICE_ADAPTER_CUDA)
 endif()
 if (VTKm_ENABLE_TBB)
+  vtkm_clear_benchmarks()
+  vtkm_save_benchmarks(TBB ${benchmarks})
   vtkm_benchmarks(VTKM_DEVICE_ADAPTER_TBB)
+endif()
+if (VTKm_ENABLE_HPX)
+  vtkm_clear_benchmarks()
+  vtkm_save_benchmarks(HPX ${benchmarks})
+  vtkm_benchmarks(VTKM_DEVICE_ADAPTER_HPX)
 endif()
 
