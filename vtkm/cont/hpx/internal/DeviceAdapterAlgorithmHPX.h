@@ -45,7 +45,6 @@
 #include <boost/iterator/counting_iterator.hpp>
 #include <boost/utility/enable_if.hpp>
 
-
 #include <algorithm>
 #include <numeric>
 
@@ -94,41 +93,19 @@ public:
       const vtkm::cont::ArrayHandle<T,CIn> &input,
       vtkm::cont::ArrayHandle<T,COut>& output)
   {
-    typedef typename vtkm::cont::ArrayHandle<T,COut>
-        ::template ExecutionTypes<Device>::Portal PortalOut;
-    typedef typename vtkm::cont::ArrayHandle<T,CIn>
-        ::template ExecutionTypes<Device>::PortalConst PortalIn;
-
     vtkm::Id numberOfValues = input.GetNumberOfValues();
-
-    PortalIn inputPortal = input.PrepareForInput(Device());
-    PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     T result = T();
     if (numberOfValues <= 0) { return result; }
 
-/*
-    std::cout << "\nInput values " ;
-    std::copy(
-      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal)-10,
-      vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
-      std::ostream_iterator<T>(std::cout, ", ")
-    );
-*/
+    auto inputPortal = input.PrepareForInput(Device());
+    auto outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     hpx::parallel::inclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
 
-/*
-    std::cout << "\nOutput values " ;
-    std::copy(
-      vtkm::cont::ArrayPortalToIteratorEnd(outputPortal)-10,
-      vtkm::cont::ArrayPortalToIteratorEnd(outputPortal),
-      std::ostream_iterator<T>(std::cout, ", ")
-    );
-*/
     result =  outputPortal.Get(numberOfValues - 1);
     return result;
   }
@@ -140,18 +117,13 @@ public:
       vtkm::cont::ArrayHandle<T,COut> &output,
       BinaryFunctor binary_functor)
   {
-      typedef typename vtkm::cont::ArrayHandle<T,COut>
-          ::template ExecutionTypes<Device>::Portal PortalOut;
-      typedef typename vtkm::cont::ArrayHandle<T,CIn>
-          ::template ExecutionTypes<Device>::PortalConst PortalIn;
-
       vtkm::Id numberOfValues = input.GetNumberOfValues();
-
-      PortalIn inputPortal = input.PrepareForInput(Device());
-      PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
       T result = T();
       if (numberOfValues <= 0) { return result; }
+
+      auto inputPortal = input.PrepareForInput(Device());
+      auto outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
       typedef internal::WrappedBinaryOperator<T, BinaryFunctor> wrapped_type;
       wrapped_type wrappedOp( binary_functor );
@@ -172,18 +144,13 @@ public:
       const vtkm::cont::ArrayHandle<T,CIn> &input,
       vtkm::cont::ArrayHandle<T,COut>& output)
   {
-    typedef typename vtkm::cont::ArrayHandle<T,COut>
-        ::template ExecutionTypes<Device>::Portal PortalOut;
-    typedef typename vtkm::cont::ArrayHandle<T,CIn>
-        ::template ExecutionTypes<Device>::PortalConst PortalIn;
-
     vtkm::Id numberOfValues = input.GetNumberOfValues();
-
-    PortalIn inputPortal = input.PrepareForInput(Device());
-    PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     T result = T();
     if (numberOfValues <= 0) { return result; }
+
+    auto inputPortal = input.PrepareForInput(Device());
+    auto outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     // the calculation is 'in place' so get this value before it is overwritten
     T temp = inputPortal.Get(numberOfValues - 1);
@@ -206,25 +173,19 @@ public:
       BinaryFunctor binary_functor,
       const T& initialValue)
   {
-    typedef typename vtkm::cont::ArrayHandle<T,COut>
-        ::template ExecutionTypes<Device>::Portal PortalOut;
-    typedef typename vtkm::cont::ArrayHandle<T,CIn>
-        ::template ExecutionTypes<Device>::PortalConst PortalIn;
-
     vtkm::Id numberOfValues = input.GetNumberOfValues();
-
-    PortalIn inputPortal = input.PrepareForInput(Device());
-    PortalOut outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     T result = T();
     if (numberOfValues <= 0) { return result; }
+
+    auto inputPortal = input.PrepareForInput(Device());
+    auto outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
     internal::WrappedBinaryOperator<T, BinaryFunctor> wrappedOp( binary_functor );
 
     // the calculation is 'in place' so get this value before it is overwritten
     T temp = inputPortal.Get(numberOfValues - 1);
 
-    // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
     hpx::parallel::exclusive_scan(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
@@ -243,10 +204,7 @@ public:
        T initialValue)
    {
      const vtkm::Id numberOfValues = input.GetNumberOfValues();
-     if (numberOfValues <= 0)
-       {
-       return initialValue;
-       }
+     if (numberOfValues <= 0) { return initialValue; }
 
      auto inputPortal = input.PrepareForInput(Device());
 
@@ -265,10 +223,7 @@ public:
        BinaryFunctor binary_functor)
    {
      const vtkm::Id numberOfValues = input.GetNumberOfValues();
-     if (numberOfValues <= 0)
-       {
-       return initialValue;
-       }
+     if (numberOfValues <= 0) { return initialValue; }
 
      auto inputPortal = input.PrepareForInput(Device());
 
@@ -293,25 +248,13 @@ public:
     VTKM_ASSERT(keys.GetNumberOfValues() == values.GetNumberOfValues());
 
     const vtkm::Id numberOfKeys = keys.GetNumberOfValues();
-    if (numberOfKeys <= 0)
-    {
-      return;
-    }
+    if (numberOfKeys <= 0) { return; }
     if (numberOfKeys <= 1)
     { //we only have a single key/value so that is our output
       Copy(keys, keys_output);
       Copy(values, values_output);
       return;
     }
-
-    typedef const typename vtkm::cont::ArrayHandle<T,KIn>
-        ::template ExecutionTypes<Device>::Portal PortalIn_k;
-    typedef const typename vtkm::cont::ArrayHandle<U,VIn>
-        ::template ExecutionTypes<Device>::Portal PortalIn_v;
-    typedef typename vtkm::cont::ArrayHandle<T,KOut>
-        ::template ExecutionTypes<Device>::PortalConst PortalOut_k;
-    typedef typename vtkm::cont::ArrayHandle<U,VOut>
-        ::template ExecutionTypes<Device>::PortalConst PortalOut_v;
 
     auto inputPortal_k = keys.PrepareForInput(Device());
     auto inputPortal_v = values.PrepareForInput(Device());
@@ -355,52 +298,21 @@ public:
         vtkm::cont::ArrayPortalToIteratorBegin(oututPortal));
   }
 
-private:
-  //----------------------------------------------------------------------------
-  // This runs in the execution environment.
-  template<class FunctorType>
-  class ScheduleKernel
-  {
-  public:
-    ScheduleKernel(const FunctorType &functor)
-      : Functor(functor) {  }
-
-    //needed for when calling from schedule on a range
-    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
-    {
-      this->Functor(index);
-    }
-
-  private:
-    const FunctorType Functor;
-  };
-
-public:
   //----------------------------------------------------------------------------
   template<class Functor>
   VTKM_CONT_EXPORT static void Schedule(Functor functor,
                                         vtkm::Id numInstances)
   {
-    const vtkm::Id MESSAGE_SIZE = 1024;
-    char errorString[MESSAGE_SIZE];
-    errorString[0] = '\0';
-    vtkm::exec::internal::ErrorMessageBuffer
-        errorMessage(errorString, MESSAGE_SIZE);
-
-    functor.SetErrorMessageBuffer(errorMessage);
-
-    DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
-
-    hpx::parallel::for_each(
-          hpx::parallel::par,
-          ::boost::counting_iterator<vtkm::Id>(0),
-          ::boost::counting_iterator<vtkm::Id>(numInstances),
-          kernel);
-
-    if (errorMessage.IsErrorRaised())
-    {
-      throw vtkm::cont::ErrorExecution(errorString);
-    }
+      try {
+          hpx::parallel::for_each(
+                hpx::parallel::par,
+                ::boost::counting_iterator<vtkm::Id>(0),
+                ::boost::counting_iterator<vtkm::Id>(numInstances),
+                functor);
+      }
+      catch(hpx::exception const& e) {
+          throw vtkm::cont::ErrorExecution(e.what());
+      }
   }
 
   //----------------------------------------------------------------------------
@@ -423,21 +335,18 @@ public:
   }
 
   //----------------------------------------------------------------------------
-  template<typename T, class Storage, class BinaryCompare>
+  template<typename T, class Storage, class BinaryPredicate>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values,
-      BinaryCompare binary_compare)
+      BinaryPredicate binary_compare)
   {
-      typedef typename vtkm::cont::ArrayHandle<T,Storage>::template
-          ExecutionTypes<Device>::Portal PortalType;
+      auto arrayPortal = values.PrepareForInPlace(Device());
 
-      PortalType arrayPortal = values.PrepareForInPlace(Device());
+      internal::WrappedBinaryOperator<bool,BinaryPredicate>
+          wrappedCompare(binary_compare);
 
-      typedef vtkm::cont::ArrayPortalToIterators<PortalType> IteratorsType;
-      IteratorsType iterators(arrayPortal);
-
-      internal::WrappedBinaryOperator<bool,BinaryCompare> wrappedCompare(binary_compare);
-
-      hpx::parallel::sort(hpx::parallel::par, iterators.GetBegin(), iterators.GetEnd(),
+      hpx::parallel::sort(hpx::parallel::par,
+          vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal),
+          vtkm::cont::ArrayPortalToIteratorEnd(arrayPortal),
           wrappedCompare);
   }
 
@@ -453,16 +362,17 @@ public:
   //----------------------------------------------------------------------------
   template<typename T, typename U,
            class StorageT, class StorageU,
-           class BinaryCompare>
+           class BinaryPredicate>
   VTKM_CONT_EXPORT static void SortByKey(
       vtkm::cont::ArrayHandle<T,StorageT>& keys,
       vtkm::cont::ArrayHandle<U,StorageU>& values,
-      BinaryCompare binary_compare)
+      BinaryPredicate binary_compare)
   {
       auto arrayPortal_k = keys.PrepareForInPlace(Device());
       auto arrayPortal_v = values.PrepareForInPlace(Device());
 
-      internal::WrappedBinaryOperator<bool,BinaryCompare> wrappedCompare(binary_compare);
+      internal::WrappedBinaryOperator<bool,BinaryPredicate>
+          wrappedCompare(binary_compare);
 
       hpx::parallel::sort_by_key(hpx::parallel::par,
           vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal_k),
@@ -474,7 +384,7 @@ public:
   //----------------------------------------------------------------------------
   VTKM_CONT_EXPORT static void Synchronize()
   {
-    // @TODO. not sure what's needed here
+    // @TODO. would like to add support for futures
   }
 
 };
