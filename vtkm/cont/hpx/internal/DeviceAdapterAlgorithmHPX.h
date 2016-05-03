@@ -33,6 +33,8 @@
 #include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/reduce_by_key.hpp>
 #include <hpx/parallel/algorithms/copy.hpp>
+#include <hpx/parallel/algorithms/prefix_copy_if.hpp>
+#include <hpx/parallel/util/zip_iterator.hpp>
 //
 #include <vtkm/cont/ArrayHandle.h>
 #include <vtkm/cont/ArrayPortalToIterators.h>
@@ -44,6 +46,8 @@
 
 #include <boost/iterator/counting_iterator.hpp>
 #include <boost/utility/enable_if.hpp>
+#include <boost/range/algorithm.hpp>
+#include <boost/range/adaptors.hpp>
 
 #include <algorithm>
 #include <numeric>
@@ -298,20 +302,53 @@ public:
         vtkm::cont::ArrayPortalToIteratorBegin(oututPortal));
   }
 
+private:
+  //----------------------------------------------------------------------------
+  // This runs in the execution environment.
+  template<class FunctorType>
+  class ScheduleKernel
+  {
+  public:
+    ScheduleKernel(const FunctorType &functor)
+      : Functor(functor) {  }
+
+    //needed for when calling from schedule on a range
+    VTKM_EXEC_EXPORT void operator()(vtkm::Id index) const
+    {
+      this->Functor(index);
+    }
+
+  private:
+    const FunctorType Functor;
+  };
+
+public:
   //----------------------------------------------------------------------------
   template<class Functor>
   VTKM_CONT_EXPORT static void Schedule(Functor functor,
                                         vtkm::Id numInstances)
   {
+      const vtkm::Id MESSAGE_SIZE = 1024;
+      char errorString[MESSAGE_SIZE];
+      errorString[0] = '\0';
+      vtkm::exec::internal::ErrorMessageBuffer
+      errorMessage(errorString, MESSAGE_SIZE);
+      functor.SetErrorMessageBuffer(errorMessage);
+      DeviceAdapterAlgorithm<Device>::ScheduleKernel<Functor> kernel(functor);
+
       try {
           hpx::parallel::for_each(
-                hpx::parallel::par,
-                ::boost::counting_iterator<vtkm::Id>(0),
-                ::boost::counting_iterator<vtkm::Id>(numInstances),
-                functor);
+              hpx::parallel::par,
+              ::boost::counting_iterator<vtkm::Id>(0),
+              ::boost::counting_iterator<vtkm::Id>(numInstances),
+              kernel);
       }
       catch(hpx::exception const& e) {
           throw vtkm::cont::ErrorExecution(e.what());
+      }
+      if (errorMessage.IsErrorRaised())
+      {
+          throw vtkm::cont::ErrorExecution(errorString);
       }
   }
 
@@ -328,9 +365,6 @@ public:
   template<typename T, class Storage>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values)
   {
-    typedef typename vtkm::cont::ArrayHandle<T,Storage>
-        ::template ExecutionTypes<Device>::Portal PortalType;
-
     Sort(values, std::less< T >() );
   }
 
@@ -368,6 +402,7 @@ public:
       vtkm::cont::ArrayHandle<U,StorageU>& values,
       BinaryPredicate binary_compare)
   {
+
       auto arrayPortal_k = keys.PrepareForInPlace(Device());
       auto arrayPortal_v = values.PrepareForInPlace(Device());
 
@@ -386,6 +421,92 @@ public:
   {
     // @TODO. would like to add support for futures
   }
+
+  //--------------------------------------------------------------------------
+  // Stream Compact
+  template<typename T, typename U, class CIn, class CStencil,
+           class COut, class UnaryPredicate>
+  VTKM_CONT_EXPORT static void StreamCompact(
+      const vtkm::cont::ArrayHandle<T,CIn>& input,
+      const vtkm::cont::ArrayHandle<U,CStencil>& stencil,
+      vtkm::cont::ArrayHandle<T,COut>& output,
+      UnaryPredicate unary_predicate)
+  {
+    VTKM_ASSERT(input.GetNumberOfValues() == stencil.GetNumberOfValues());
+    vtkm::Id arraySize = stencil.GetNumberOfValues();
+
+    // portal types for the input/output arrays
+    typedef const typename vtkm::cont::ArrayHandle<T,CIn>
+        ::template ExecutionTypes<Device>::PortalConst PortalIn;
+    typedef const typename vtkm::cont::ArrayHandle<U,CStencil>
+        ::template ExecutionTypes<Device>::PortalConst PortalStencil;
+    typedef typename vtkm::cont::ArrayHandle<T,COut>
+        ::template ExecutionTypes<Device>::Portal PortalOut;
+
+    // input portal vars
+    PortalIn inputPortal_i = input.PrepareForInput(Device());
+    PortalStencil inputPortal_s = stencil.PrepareForInput(Device());
+
+    // output portal var
+    vtkm::cont::ArrayHandle<T,COut> temp_output;
+    PortalOut tempPortal = temp_output.PrepareForOutput(arraySize, Device());
+
+    typedef typename vtkm::cont::ArrayPortalToIterators<PortalIn>::IteratorType
+        InIteratorType;
+    typedef typename vtkm::cont::ArrayPortalToIterators<PortalStencil>::IteratorType
+        StencilIteratorType;
+    typedef typename vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType
+        OutIteratorType;
+    //
+    typedef typename hpx::util::zip_iterator<InIteratorType, StencilIteratorType> zip_type;
+    typedef typename zip_type::reference zip_ref;
+    typedef typename zip_type::value_type zip_value;
+
+    InIteratorType iterators_i(inputPortal_i);
+    StencilIteratorType iterators_s(inputPortal_s);
+
+    auto end = hpx::parallel::prefix_copy_if_stencil(
+        hpx::parallel::par,
+        // begin
+        vtkm::cont::ArrayPortalToIteratorBegin(inputPortal_i),
+        vtkm::cont::ArrayPortalToIteratorEnd(inputPortal_i),
+        vtkm::cont::ArrayPortalToIteratorBegin(inputPortal_s),
+        vtkm::cont::ArrayPortalToIteratorBegin(tempPortal),
+        unary_predicate
+    );
+
+    vtkm::Id finalSize = std::distance(vtkm::cont::ArrayPortalToIteratorBegin(tempPortal), end);
+    temp_output.Shrink(finalSize);
+    auto newPortal = temp_output.PrepareForInput(Device());
+    auto outputPortal   = output.PrepareForOutput(finalSize, Device());
+    //
+    hpx::parallel::copy(
+        hpx::parallel::par,
+        vtkm::cont::ArrayPortalToIteratorBegin(newPortal),
+        vtkm::cont::ArrayPortalToIteratorEnd(newPortal),
+        vtkm::cont::ArrayPortalToIteratorBegin(outputPortal)
+    );
+  }
+
+  template<typename T, typename U, class CIn, class CStencil, class COut>
+  VTKM_CONT_EXPORT static void StreamCompact(
+      /*const*/ vtkm::cont::ArrayHandle<T,CIn>& input,
+      /*const*/ vtkm::cont::ArrayHandle<U,CStencil>& stencil,
+      vtkm::cont::ArrayHandle<T,COut>& output)
+  {
+    ::vtkm::NotZeroInitialized unary_predicate;
+    StreamCompact(input, stencil, output, unary_predicate);
+  }
+
+  template<typename T, class CStencil, class COut>
+  VTKM_CONT_EXPORT static void StreamCompact(
+      /*const*/ vtkm::cont::ArrayHandle<T,CStencil> &stencil,
+      vtkm::cont::ArrayHandle<vtkm::Id,COut> &output)
+  {
+    vtkm::cont::ArrayHandleIndex input(stencil.GetNumberOfValues());
+    StreamCompact(input, stencil, output);
+  }
+
 
 };
 
