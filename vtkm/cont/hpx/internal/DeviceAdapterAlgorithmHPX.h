@@ -23,6 +23,8 @@
 #ifndef vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
 #define vtk_m_cont_internal_DeviceAdapterAlgorithmHPX_h
 
+#define PREFIX_SCAN
+
 // include HPX headers before vtkm+boost to avoid problems with definitions
 #include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
 #include <hpx/parallel/algorithms/for_each.hpp>
@@ -33,7 +35,16 @@
 #include <hpx/parallel/algorithms/reduce.hpp>
 #include <hpx/parallel/algorithms/reduce_by_key.hpp>
 #include <hpx/parallel/algorithms/copy.hpp>
-#include <hpx/parallel/algorithms/prefix_copy_if.hpp>
+#ifdef PREFIX_SCAN
+# include <hpx/parallel/algorithms/prefix_scan.hpp>
+# include <hpx/parallel/algorithms/prefix_copy_if.hpp>
+# include <hpx/parallel/algorithms/prefix_unique.hpp>
+# define SCAN_I prefix_scan_inclusive
+# define SCAN_E prefix_scan_exclusive
+#else
+# define SCAN_I inclusive_scan
+# define SCAN_E exclusive_scan
+#endif
 #include <hpx/parallel/util/zip_iterator.hpp>
 //
 #include <vtkm/cont/ArrayHandle.h>
@@ -361,7 +372,8 @@ public:
                                      rangeMax[0] * rangeMax[1] * rangeMax[2] );
   }
 
-  //----------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  // Sort
   template<typename T, class Storage>
   VTKM_CONT_EXPORT static void Sort(vtkm::cont::ArrayHandle<T,Storage>& values)
   {
@@ -384,7 +396,8 @@ public:
           wrappedCompare);
   }
 
-  //----------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  // SortByKey
   template<typename T, typename U, class StorageT,  class StorageU>
   VTKM_CONT_EXPORT static void SortByKey(
       vtkm::cont::ArrayHandle<T,StorageT> &keys,
@@ -422,6 +435,7 @@ public:
     // @TODO. would like to add support for futures
   }
 
+#ifdef PREFIX_SCAN
   //--------------------------------------------------------------------------
   // Stream Compact
   template<typename T, typename U, class CIn, class CStencil,
@@ -465,7 +479,7 @@ public:
     InIteratorType iterators_i(inputPortal_i);
     StencilIteratorType iterators_s(inputPortal_s);
 
-    auto end = hpx::parallel::prefix_copy_if_stencil(
+    auto end = hpx::parallel::prefix_copy_if_stencil_pred(
         hpx::parallel::par,
         // begin
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal_i),
@@ -507,6 +521,36 @@ public:
     StreamCompact(input, stencil, output);
   }
 
+  //--------------------------------------------------------------------------
+  // Unique
+  template<typename T, class Storage>
+  VTKM_CONT_EXPORT static void Unique(
+      vtkm::cont::ArrayHandle<T,Storage> &values)
+  {
+    Unique(values, std::equal_to<T>());
+  }
+
+  template<typename T, class Storage, class BinaryCompare>
+  VTKM_CONT_EXPORT static void Unique(
+      vtkm::cont::ArrayHandle<T,Storage> &values,
+      BinaryCompare binary_compare)
+  {
+      auto arrayPortal = values.PrepareForInPlace(Device());
+
+      internal::WrappedBinaryOperator<bool,BinaryCompare>
+          wrappedCompare(binary_compare);
+
+      auto new_end = hpx::parallel::prefix_unique(hpx::parallel::par,
+          vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal),
+          vtkm::cont::ArrayPortalToIteratorEnd(arrayPortal),
+          wrappedCompare);
+
+      std::size_t N = std::distance(
+          vtkm::cont::ArrayPortalToIteratorBegin(arrayPortal), new_end);
+      values.Shrink(N);
+  }
+
+#endif
 
 };
 
