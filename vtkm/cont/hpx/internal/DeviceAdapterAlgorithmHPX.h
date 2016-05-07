@@ -289,7 +289,7 @@ public:
             std::forward<BinaryFunctor>(binary_functor)
             );
 
-    int reduced_size = std::distance(vtkm::cont::ArrayPortalToIteratorBegin(outputPortal_k), result.first);
+    std::size_t reduced_size = std::distance(vtkm::cont::ArrayPortalToIteratorBegin(outputPortal_k), result.first);
 
     keys_output.Shrink( reduced_size );
     values_output.Shrink( reduced_size );
