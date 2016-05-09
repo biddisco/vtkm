@@ -63,7 +63,7 @@ if(VTKm_ENABLE_HPX)
   find_package(HPX REQUIRED)
   message("HPX_FOUND is ${HPX_FOUND} in ${HPX_DIR}")
   #-------------
-  # Find Boost, just to make sure
+  # Find Boost, we need a full Boost install, not just headers 
   #-------------
   set(Boost_ADDITIONAL_VERSIONS
       ${Boost_ADDITIONAL_VERSIONS}
@@ -76,7 +76,8 @@ if(VTKm_ENABLE_HPX)
     COMPONENTS
       atomic chrono date_time filesystem program_options regex system thread 
     )
-    set(CMAKE_CXX_FLAGS ${HPX_CXX_FLAGS})
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -w")
+    vtkm_configure_device(HPX REQUIRED)
     include_directories(${HPX_INCLUDE_DIRS})
 else()
   if (NOT Boost_FOUND)

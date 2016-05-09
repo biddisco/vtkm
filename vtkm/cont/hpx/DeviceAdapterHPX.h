@@ -24,7 +24,10 @@
 #define vtk_m_cont_DeviceAdapterHPX_h
 
 #include <vtkm/cont/hpx/internal/DeviceAdapterTagHPX.h>
-#include <vtkm/cont/hpx/internal/ArrayManagerExecutionHPX.h>
-#include <vtkm/cont/hpx/internal/DeviceAdapterAlgorithmHPX.h>
+
+#ifdef VTKM_ENABLE_HPX
+# include <vtkm/cont/hpx/internal/ArrayManagerExecutionHPX.h>
+# include <vtkm/cont/hpx/internal/DeviceAdapterAlgorithmHPX.h>
+#endif
 
 #endif //vtk_m_cont_DeviceAdapterHPX_h

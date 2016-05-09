@@ -261,20 +261,24 @@ function(vtkm_unit_tests)
       set(timeout 600)
     endif()
 
+    # needed to support runtime check for hpx availability
+    # otherwise we get link errors
+    if (VTKm_ENABLE_HPX)
+      link_directories(${Boost_LIBRARY_DIRS})
+    endif()
+
     if (VTKm_UT_CUDA)
       vtkm_setup_nvcc_flags( old_nvcc_flags )
       cuda_add_executable(${test_prog} ${TestSources})
       set(CUDA_NVCC_FLAGS ${old_nvcc_flags})
-
-    elseif (VTKm_UT_HPX)
-      link_directories(${Boost_LIBRARY_DIRS})
-      add_executable(${test_prog}  ${TestSources})
-      target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
-      hpx_setup_target(${test_prog})
     else ()
       add_executable(${test_prog} ${TestSources})
     endif ()
 
+    if (VTKm_ENABLE_HPX)
+      target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
+      hpx_setup_target(${test_prog})
+    endif()
     #do it as a property value so we don't pollute the include_directories
     #for any other targets
     set_property(TARGET ${test_prog} APPEND PROPERTY

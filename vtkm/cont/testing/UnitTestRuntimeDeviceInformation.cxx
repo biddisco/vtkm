@@ -21,6 +21,7 @@
 #include <vtkm/cont/RuntimeDeviceInformation.h>
 
 //include all backends
+#include <vtkm/cont/hpx/DeviceAdapterHPX.h>
 #include <vtkm/cont/cuda/DeviceAdapterCuda.h>
 #include <vtkm/cont/tbb/DeviceAdapterTBB.h>
 #include <vtkm/cont/DeviceAdapterSerial.h>
