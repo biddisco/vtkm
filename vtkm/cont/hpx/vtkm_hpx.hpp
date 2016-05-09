@@ -30,7 +30,7 @@
 // override int main() so that hpx is initialized on startup
 #include <hpx/hpx_main.hpp>  
 
-// squash windows #defines FTER #INCLUDING HPX
+// squash windows #defines after #including HPX
 #undef GetMessage
 
 #endif //vtkm_hpx_h

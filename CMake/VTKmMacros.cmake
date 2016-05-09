@@ -273,6 +273,10 @@ function(vtkm_unit_tests)
       hpx_setup_target(${test_prog})
     else ()
       add_executable(${test_prog} ${TestSources})
+      if (VTKm_ENABLE_HPX)
+        target_compile_definitions(${test_prog} PUBLIC VTKM_DEVICE_CONFIG_INCLUDE="vtkm/cont/hpx/vtkm_hpx.hpp")
+        hpx_setup_target(${test_prog})
+      endif()
     endif ()
 
     #do it as a property value so we don't pollute the include_directories

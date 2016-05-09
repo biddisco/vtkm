@@ -43,9 +43,11 @@
 // Unfortunately, VTKM_ENABLE_TBB does not guarantee that TBB is (or isn't)
 // available, but there is no way to check for sure in a header library.
 #define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_TBB
-#else // !VTKM_CUDA && !VTKM_OPENMP && !VTKM_ENABLE_TBB
+#elif defined(VTKM_ENABLE_HPX) // !VTKM_CUDA && !VTKM_OPENMP && !VTKM_ENABLE_TBB
+#define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_HPX
+#else // !VTKM_CUDA && !VTKM_OPENMP && !VTKM_ENABLE_TBB && !VTKM_ENABLE_HPX
 #define VTKM_DEVICE_ADAPTER VTKM_DEVICE_ADAPTER_SERIAL
-#endif // !VTKM_CUDA && !VTKM_OPENMP
+#endif // !VTKM_CUDA && !VTKM_OPENMP && ...
 #endif // VTKM_DEVICE_ADAPTER
 
 namespace vtkm {
