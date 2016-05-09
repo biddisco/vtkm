@@ -479,7 +479,7 @@ public:
     InIteratorType iterators_i(inputPortal_i);
     StencilIteratorType iterators_s(inputPortal_s);
 
-    auto end = hpx::parallel::prefix_copy_if_stencil_pred(
+    auto end = hpx::parallel::prefix_copy_if_stencil(
         hpx::parallel::par,
         // begin
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal_i),
