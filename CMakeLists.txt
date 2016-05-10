@@ -76,7 +76,7 @@ if(VTKm_ENABLE_HPX)
     COMPONENTS
       atomic chrono date_time filesystem program_options regex system thread 
     )
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -w")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -w")
     vtkm_configure_device(HPX REQUIRED)
     include_directories(${HPX_INCLUDE_DIRS})
 else()
