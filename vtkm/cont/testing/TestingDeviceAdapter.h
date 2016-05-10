@@ -41,6 +41,9 @@
 
 #include <vtkm/exec/AtomicArray.h>
 
+#include <hpx/traits/pointer_category.hpp>
+#include <vtkm/cont/hpx/DeviceAdapterHPX.h>
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -1660,8 +1663,59 @@ private:
     std::cout << " : OK";
   }
 
+  template <typename T>
+  static VTKM_CONT_EXPORT void CopyCategory()
+  {
+      T testData_in[ARRAY_SIZE];
+      T testData_out[ARRAY_SIZE];
+      auto handle_in  = vtkm::cont::make_ArrayHandle(testData_in, ARRAY_SIZE);
+      auto handle_out = vtkm::cont::make_ArrayHandle(testData_out, ARRAY_SIZE);
+      //
+      auto portal_in = handle_in.PrepareForInput(vtkm::cont::DeviceAdapterTagHPX());
+      auto portal_out = handle_out.PrepareForOutput(ARRAY_SIZE, vtkm::cont::DeviceAdapterTagHPX());
+
+      auto b = vtkm::cont::ArrayPortalToIteratorBegin(portal_in);
+      auto e = vtkm::cont::ArrayPortalToIteratorBegin(portal_out);
+
+      auto iType = hpx::traits::get_pointer_category(b, e);
+      std::cout << std::setw(35)
+          << type_name<T>().c_str()
+          << std::setw(60) << type_name<decltype(iType)>().c_str()
+          << std::setw(40) << type_name<decltype(b)>().c_str()
+          << std::setw(35) << type_name<decltype(e)>().c_str() << " "
+          << std::is_trivially_copyable<T>::value << " "
+          << std::is_trivially_copyable<decltype(b)>::value << " "
+          << std::is_trivially_copyable<decltype(e)>::value
+          << "\n";
+  }
+
   static VTKM_CONT_EXPORT void TestCopyArraysMany()
   {
+
+      std::cout << "-------------------------------------------------" << std::endl;
+      CopyCategory<vtkm::Vec<vtkm::Float32,4>>();
+      CopyCategory<vtkm::Vec<vtkm::Float64,4>>();
+      //
+      CopyCategory<vtkm::Vec<vtkm::UInt8,2>>();
+      CopyCategory<vtkm::Vec<vtkm::UInt16,2>>();
+      CopyCategory<vtkm::Vec<vtkm::UInt32,2>>();
+      CopyCategory<vtkm::Vec<vtkm::UInt64,2>>();
+      //
+      CopyCategory<vtkm::Float32>();
+      CopyCategory<vtkm::Float64>();
+      //
+      CopyCategory<vtkm::Int8>();
+      CopyCategory<vtkm::Int16>();
+      CopyCategory<vtkm::Int32>();
+      CopyCategory<vtkm::Int64>();
+      //
+      CopyCategory<vtkm::UInt8>();
+      CopyCategory<vtkm::UInt16>();
+      CopyCategory<vtkm::UInt32>();
+      CopyCategory<vtkm::UInt64>();
+      //
+      CopyCategory<vtkm::Id>();
+
       std::cout << "-------------------------------------------------" << std::endl;
       TestCopyArrays<vtkm::Vec<vtkm::Float32,4>>();
       TestCopyArrays<vtkm::Vec<vtkm::Float64,4>>();
