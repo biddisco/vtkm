@@ -67,6 +67,9 @@ int BenchmarkDeviceAdapter(int argc, char *argv[])
       else if (arg == "upperbounds"){
         benchmarks |= vtkm::benchmarking::UPPER_BOUNDS;
       }
+      else if (arg == "copy"){
+        benchmarks |= vtkm::benchmarking::COPY;
+      }
       else {
         std::cout << "Unrecognized benchmark: " << argv[i] << std::endl;
         return 1;
