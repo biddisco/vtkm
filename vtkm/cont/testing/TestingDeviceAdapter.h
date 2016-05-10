@@ -1591,28 +1591,100 @@ private:
                      "Did not get expected error message.");
   }
 
+  template <class T>
+  static std::string type_name()
+  {
+      typedef typename std::remove_reference<T>::type TR;
+      std::unique_ptr<char, void(*)(void*)> own
+          (
+#ifndef _MSC_VER
+              abi::__cxa_demangle(typeid(TR).name(), nullptr,
+                  nullptr, nullptr),
+#else
+                  nullptr,
+#endif
+                  std::free
+          );
+      std::string r = own != nullptr ? own.get() : typeid(TR).name();
+      if (std::is_const<TR>::value)
+          r += " const";
+      if (std::is_volatile<TR>::value)
+          r += " volatile";
+      if (std::is_lvalue_reference<T>::value)
+          r += "&";
+      else if (std::is_rvalue_reference<T>::value)
+          r += "&&";
+      return r;
+  }
+
+  template <typename T, int N=0>
+  struct TestCopy {};
+
+  template <typename T>
+  struct TestCopy<T> {
+      static T get(vtkm::Id i) { return static_cast<T>(i); }
+  };
+
+  template <typename T, int N>
+  struct TestCopy<vtkm::Vec<T, N>> {
+      static vtkm::Vec<T, N> get(vtkm::Id i) {
+          vtkm::Vec<T, N> temp;
+          for (int j=0; j<N; ++j) {
+            temp[j] = OFFSET+(i % 50);
+          }
+          return temp;
+      }
+  };
+
+  template <typename T>
   static VTKM_CONT_EXPORT void TestCopyArrays()
   {
-    std::cout << "-------------------------------------------------" << std::endl;
-    std::cout << "Testing Copy " << std::endl;
-    vtkm::Id testData[ARRAY_SIZE];
+    std::cout << "Testing Copy " << type_name<T>().c_str();
+    T testData[ARRAY_SIZE];
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
     {
-      testData[i]= OFFSET+(i % 50);
+      testData[i]= TestCopy<T>::get(i);
     }
 
-    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
+    auto input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
 
     //make a deep copy of input and place it into temp
-    vtkm::cont::ArrayHandle<vtkm::Id> temp;
+    vtkm::cont::ArrayHandle<T> temp;
     Algorithm::Copy(input,temp);
 
     for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
     {
-      vtkm::Id value = temp.GetPortalConstControl().Get(i);
+      T value = temp.GetPortalConstControl().Get(i);
       VTKM_TEST_ASSERT(value == testData[i], "Got bad value (Copy)");
     }
+    std::cout << " : OK";
+  }
 
+  static VTKM_CONT_EXPORT void TestCopyArraysMany()
+  {
+      std::cout << "-------------------------------------------------" << std::endl;
+      TestCopyArrays<vtkm::Vec<vtkm::Float32,4>>();
+      TestCopyArrays<vtkm::Vec<vtkm::Float64,4>>();
+      //
+      TestCopyArrays<vtkm::Vec<vtkm::UInt8,2>>();
+      TestCopyArrays<vtkm::Vec<vtkm::UInt16,2>>();
+      TestCopyArrays<vtkm::Vec<vtkm::UInt32,2>>();
+      TestCopyArrays<vtkm::Vec<vtkm::UInt64,2>>();
+      //
+      TestCopyArrays<vtkm::Float32>();
+      TestCopyArrays<vtkm::Float64>();
+      //
+      TestCopyArrays<vtkm::Int8>();
+      TestCopyArrays<vtkm::Int16>();
+      TestCopyArrays<vtkm::Int32>();
+      TestCopyArrays<vtkm::Int64>();
+      //
+      TestCopyArrays<vtkm::UInt8>();
+      TestCopyArrays<vtkm::UInt16>();
+      TestCopyArrays<vtkm::UInt32>();
+      TestCopyArrays<vtkm::UInt64>();
+      //
+      TestCopyArrays<vtkm::Id>();
   }
 
   static VTKM_CONT_EXPORT void TestCopyArraysInDiffTypes()
@@ -1743,6 +1815,7 @@ private:
 
       TestCopyArrays();
       TestCopyArraysInDiffTypes();
+      TestCopyArraysMany();
 
       TestAtomicArray();
     }
