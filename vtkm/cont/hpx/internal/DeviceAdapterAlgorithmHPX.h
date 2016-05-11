@@ -218,16 +218,9 @@ public:
        const vtkm::cont::ArrayHandle<T,SIn> &input,
        T initialValue)
    {
-     const vtkm::Id numberOfValues = input.GetNumberOfValues();
-     if (numberOfValues <= 0) { return initialValue; }
-
-     auto inputPortal = input.PrepareForInput(Device());
-
-     return hpx::parallel::reduce(
-         hpx::parallel::par,
-         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
-         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
-         std::forward<T>(initialValue));
+      return Reduce(input,
+          std::forward<T>(initialValue),
+          std::plus<T>());
    }
 
   //----------------------------------------------------------------------------
