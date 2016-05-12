@@ -1591,6 +1591,29 @@ private:
                      "Did not get expected error message.");
   }
 
+  static VTKM_CONT_EXPORT void TestCopyArrays()
+  {
+    std::cout << "-------------------------------------------------" << std::endl;
+    std::cout << "Testing Copy " << std::endl;
+    vtkm::Id testData[ARRAY_SIZE];
+    for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
+    {
+      testData[i]= OFFSET+(i % 50);
+    }
+
+    IdArrayHandle input = vtkm::cont::make_ArrayHandle(testData, ARRAY_SIZE);
+
+    //make a deep copy of input and place it into temp
+    vtkm::cont::ArrayHandle<vtkm::Id> temp;
+    Algorithm::Copy(input,temp);
+
+    for(vtkm::Id i=0; i < ARRAY_SIZE; ++i)
+    {
+      vtkm::Id value = temp.GetPortalConstControl().Get(i);
+      VTKM_TEST_ASSERT(value == testData[i], "Got bad value (Copy)");
+    }
+
+  }
 
   static VTKM_CONT_EXPORT void TestCopyArraysInDiffTypes()
   {
@@ -1718,6 +1741,7 @@ private:
       TestStreamCompactWithStencil();
       TestStreamCompact();
 
+      TestCopyArrays();
       TestCopyArraysInDiffTypes();
 
       TestAtomicArray();
