@@ -116,7 +116,7 @@ public:
     auto inputPortal = input.PrepareForInput(Device());
     auto outputPortal = output.PrepareForOutput(numberOfValues, Device());
 
-    hpx::parallel::inclusive_scan(hpx::parallel::par,
+    hpx::parallel::SCAN_I(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal));
@@ -142,7 +142,7 @@ public:
 
       typedef internal::WrappedBinaryOperator<T, BinaryFunctor> wrapped_type;
       wrapped_type wrappedOp( binary_functor );
-      hpx::parallel::inclusive_scan(hpx::parallel::par,
+      hpx::parallel::SCAN_I(hpx::parallel::par,
         vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
         vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
         vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
@@ -171,7 +171,7 @@ public:
     T temp = inputPortal.Get(numberOfValues - 1);
 
     // vtkm::cont::ArrayPortalToIterators<PortalOut>::IteratorType fullValue =
-    hpx::parallel::exclusive_scan(hpx::parallel::par,
+    hpx::parallel::SCAN_E(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal), T());
@@ -201,7 +201,7 @@ public:
     // the calculation is 'in place' so get this value before it is overwritten
     T temp = inputPortal.Get(numberOfValues - 1);
 
-    hpx::parallel::exclusive_scan(hpx::parallel::par,
+    hpx::parallel::SCAN_E(hpx::parallel::par,
       vtkm::cont::ArrayPortalToIteratorBegin(inputPortal),
       vtkm::cont::ArrayPortalToIteratorEnd(inputPortal),
       vtkm::cont::ArrayPortalToIteratorBegin(outputPortal),
