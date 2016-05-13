@@ -474,8 +474,8 @@ private:
     typedef vtkm::cont::ArrayHandle<Value, StorageTag> ValueArrayHandle;
 
     const vtkm::Id N_VALID;
-    ValueArrayHandle ValueHandle;
-    IdArrayHandle StencilHandle, OutHandle;
+    ValueArrayHandle ValueHandle, OutHandle;
+    IdArrayHandle StencilHandle;
 
     VTKM_CONT_EXPORT
     BenchStreamCompactStencil(vtkm::Id percent_valid) : N_VALID((ARRAY_SIZE * percent_valid) / 100)
@@ -483,7 +483,7 @@ private:
       vtkm::Id modulo = ARRAY_SIZE / N_VALID;
       Algorithm::Schedule(FillTestValueKernel<Value>(
             ValueHandle.PrepareForOutput(ARRAY_SIZE, DeviceAdapterTag())), ARRAY_SIZE);
-      Algorithm::Schdule(FillBinaryTestValueKernel<vtkm::Id>(modulo,
+      Algorithm::Schedule(FillBinaryTestValueKernel<vtkm::Id>(modulo,
             StencilHandle.PrepareForOutput(ARRAY_SIZE, DeviceAdapterTag())), ARRAY_SIZE);
     }
 
@@ -659,6 +659,16 @@ public:
       VTKM_RUN_BENCHMARK(StreamCompact20, ValueTypes());
       VTKM_RUN_BENCHMARK(StreamCompact25, ValueTypes());
       VTKM_RUN_BENCHMARK(StreamCompact30, ValueTypes());
+    }
+
+    if (benchmarks & STREAM_COMPACT) {
+      std::cout << "\n" << DIVIDER << "\nBenchmarking StreamCompactStencil\n";
+      VTKM_RUN_BENCHMARK(StreamCompactStencil5, ValueTypes());
+      VTKM_RUN_BENCHMARK(StreamCompactStencil10, ValueTypes());
+      VTKM_RUN_BENCHMARK(StreamCompactStencil15, ValueTypes());
+      VTKM_RUN_BENCHMARK(StreamCompactStencil20, ValueTypes());
+      VTKM_RUN_BENCHMARK(StreamCompactStencil25, ValueTypes());
+      VTKM_RUN_BENCHMARK(StreamCompactStencil30, ValueTypes());
     }
 
     if (benchmarks & UNIQUE){
